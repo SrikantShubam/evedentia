@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "title": "Invoice chasing quotes missing from source",
+      "url": "https://news.ycombinator.com/item?id=3",
+      "created_at": "2026-04-12T00:00:00Z",
+      "quote": "Missing from the page",
+      "source_text": "Completely different text.",
+      "willingness_to_pay": "pass",
+      "distribution_channel": "pass",
+      "data_feasibility": "pass",
+      "competition_gap": 0.6,
+      "buildability": 0.5,
+      "reachability_strength": 0.5,
+      "cluster_id": "bad-quote"
+    },
+    {
+      "title": "Need a better AR workflow someday",
+      "url": "https://news.ycombinator.com/item?id=4",
+      "created_at": "2026-04-11T00:00:00Z",
+      "quote": "Need a better AR workflow someday",
+      "source_text": "Need a better AR workflow someday",
+      "willingness_to_pay": "fail",
+      "distribution_channel": "pass",
+      "data_feasibility": "pass",
+      "competition_gap": 0.3,
+      "buildability": 0.5,
+      "reachability_strength": 0.2,
+      "cluster_id": "hold-case"
+    }
+  ]
+}
