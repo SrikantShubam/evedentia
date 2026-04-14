@@ -8,7 +8,9 @@ from evidentia.builder import build_wedge_app
 from evidentia.classifier import classify_candidate
 from evidentia.deployer import build_deployment_metadata, can_deploy
 from evidentia.scanners import FIXTURE_SCANNERS
+from evidentia.scanners.github import scan_github_live
 from evidentia.scanners.hn import scan_hn_fixture, scan_hn_live
+from evidentia.scanners.reddit import scan_reddit_live
 from evidentia.scoring import dedupe_by_cluster, rank_opportunities, score_opportunity
 from evidentia.spec_writer import write_spec
 from evidentia.tracker import load_metrics
@@ -99,8 +101,18 @@ def _run_scan_fixture(fixture_path: str) -> dict:
     return run_fixture_scan({"hn": fixture_path})
 
 
-def run_live_scan(domain: str, max_results: int = 3) -> dict:
-    candidates = scan_hn_live(domain, max_results=max_results)
+def run_live_scan(domain: str, sources: list[str] | None = None, max_results: int = 3) -> dict:
+    selected_sources = sources or ["hn"]
+    candidates = []
+    for source in selected_sources:
+        if source == "hn":
+            candidates.extend(scan_hn_live(domain, max_results=max_results))
+        elif source == "reddit":
+            candidates.extend(scan_reddit_live(domain, max_results=max_results))
+        elif source == "github":
+            candidates.extend(scan_github_live(domain, max_results=max_results))
+        else:
+            raise click.ClickException(f"unsupported live source: {source}")
     scored: list[dict] = []
     discard_log: list[dict] = []
 
@@ -120,14 +132,22 @@ def run_live_scan(domain: str, max_results: int = 3) -> dict:
 @click.option("--fixture", "fixture_path", type=click.Path(exists=True, dir_okay=False))
 @click.option("--live", "live_mode", is_flag=True, default=False)
 @click.option("--domain", type=str)
+@click.option("--sources", type=str, default="hn", show_default=True)
 @click.option("--max-results", type=int, default=3, show_default=True)
 @click.option("--output", "output_path", required=True, type=click.Path(dir_okay=False))
-def scan(fixture_path: str | None, live_mode: bool, domain: str | None, max_results: int, output_path: str) -> None:
+def scan(
+    fixture_path: str | None,
+    live_mode: bool,
+    domain: str | None,
+    sources: str,
+    max_results: int,
+    output_path: str,
+) -> None:
     """Run the scan stage."""
     if live_mode:
         if not domain:
             raise click.ClickException("--domain is required with --live")
-        payload = run_live_scan(domain, max_results=max_results)
+        payload = run_live_scan(domain, sources=[item.strip() for item in sources.split(",") if item.strip()], max_results=max_results)
     else:
         if not fixture_path:
             raise click.ClickException("--fixture is required unless --live is used")

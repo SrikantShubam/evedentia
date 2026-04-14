@@ -1,5 +1,7 @@
 import json
 
+from evidentia.providers import _http_json
+
 
 def scan_github_fixture(path: str) -> list[dict]:
     with open(path, "r", encoding="utf-8") as fh:
@@ -23,3 +25,26 @@ def scan_github_fixture(path: str) -> list[dict]:
         }
         for item in payload["items"]
     ]
+
+
+def scan_github_live(query: str, max_results: int = 3, fetch_json=None) -> list[dict]:
+    resolved_fetch = fetch_json or _http_json
+    encoded_query = query.replace(" ", "+")
+    url = f"https://api.github.com/search/issues?q={encoded_query}&per_page={max_results}"
+    payload = resolved_fetch(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "Evidentia/1.0"})
+    items = payload.get("items") or []
+    normalized: list[dict] = []
+    for item in items[:max_results]:
+        source_text = str(item.get("body") or item.get("title") or "")
+        normalized.append(
+            {
+                "source": "github",
+                "title": str(item.get("title") or "Untitled GitHub issue"),
+                "source_url": str(item.get("html_url") or ""),
+                "published_at": item.get("updated_at"),
+                "verbatim_quote": source_text,
+                "source_text": source_text,
+                "cluster_id": f"github:{item.get('id', 'unknown')}",
+            }
+        )
+    return normalized
