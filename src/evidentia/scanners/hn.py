@@ -1,4 +1,5 @@
 import json
+from urllib.parse import urlencode
 
 from evidentia.providers import _http_json
 
@@ -29,24 +30,25 @@ def scan_hn_fixture(path: str) -> list[dict]:
 
 def scan_hn_live(query: str, max_results: int = 3, fetch_json=None) -> list[dict]:
     resolved_fetch = fetch_json or _http_json
-    url = (
-        "https://hn.algolia.com/api/v1/search_by_date?"
-        f"query={query.replace(' ', '+')}&tags=story&hitsPerPage={max_results}"
-    )
+    query_string = urlencode({"query": query, "tags": "story", "hitsPerPage": max_results})
+    url = f"https://hn.algolia.com/api/v1/search_by_date?{query_string}"
     payload = resolved_fetch(url)
     hits = payload.get("hits") or []
     normalized: list[dict] = []
     for item in hits[:max_results]:
+        object_id = item.get("objectID")
+        if not object_id:
+            continue
         source_text = str(item.get("story_text") or item.get("title") or "")
         normalized.append(
             {
                 "source": "hn",
                 "title": str(item.get("title") or "Untitled HN story"),
-                "source_url": f"https://news.ycombinator.com/item?id={item['objectID']}",
+                "source_url": f"https://news.ycombinator.com/item?id={object_id}",
                 "published_at": item.get("created_at"),
                 "verbatim_quote": source_text,
                 "source_text": source_text,
-                "cluster_id": f"hn:{item['objectID']}",
+                "cluster_id": f"hn:{object_id}",
             }
         )
     return normalized

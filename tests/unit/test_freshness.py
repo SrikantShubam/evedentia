@@ -11,6 +11,16 @@ def test_freshness_decay_penalizes_older_opportunities():
     assert newer_score > older_score
 
 
+def test_freshness_decay_distinguishes_sub_day_recency():
+    newer = {"score": 1.0, "published_at": "2026-04-14T10:00:00Z"}
+    older = {"score": 1.0, "published_at": "2026-04-14T08:00:00Z"}
+
+    newer_score = apply_freshness_decay(newer, reference_timestamp="2026-04-14T12:00:00Z")
+    older_score = apply_freshness_decay(older, reference_timestamp="2026-04-14T12:00:00Z")
+
+    assert newer_score > older_score
+
+
 def test_rank_uses_freshness_after_gating():
     opportunities = [
         {

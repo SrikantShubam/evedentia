@@ -7,6 +7,8 @@ from evidentia.auditor import verify_quote
 from evidentia.builder import build_wedge_app
 from evidentia.classifier import classify_candidate
 from evidentia.deployer import build_deployment_metadata, can_deploy
+from evidentia.models import ProductSpec
+from evidentia.providers import ProviderError
 from evidentia.scanners import FIXTURE_SCANNERS
 from evidentia.scanners.github import scan_github_live
 from evidentia.scanners.hn import scan_hn_fixture, scan_hn_live
@@ -77,20 +79,35 @@ def _candidate_to_opportunity(index: int, candidate: dict) -> tuple[dict | None,
     return opportunity, None
 
 
-def run_fixture_scan(fixtures_by_source: dict[str, str]) -> dict:
-    candidates = []
-    for source, path in fixtures_by_source.items():
-        candidates.extend(FIXTURE_SCANNERS[source](path))
-
+def _process_candidates(candidates: list[dict]) -> tuple[list[dict], list[dict]]:
     scored: list[dict] = []
     discard_log: list[dict] = []
 
     for index, candidate in enumerate(candidates, start=1):
-        opportunity, discard = _candidate_to_opportunity(index, candidate)
+        try:
+            opportunity, discard = _candidate_to_opportunity(index, candidate)
+        except KeyError as exc:
+            discard_log.append(
+                {
+                    "source_url": candidate.get("source_url"),
+                    "verbatim_quote": candidate.get("verbatim_quote"),
+                    "reason": f"missing_candidate_field:{exc.args[0]}",
+                }
+            )
+            continue
         if opportunity is not None:
             scored.append(opportunity)
         if discard is not None:
             discard_log.append(discard)
+
+    return scored, discard_log
+
+
+def run_fixture_scan(fixtures_by_source: dict[str, str]) -> dict:
+    candidates = []
+    for source, path in fixtures_by_source.items():
+        candidates.extend(FIXTURE_SCANNERS[source](path))
+    scored, discard_log = _process_candidates(candidates)
 
     deduped = dedupe_by_cluster(scored)
     ranked = rank_opportunities(deduped)
@@ -101,31 +118,53 @@ def _run_scan_fixture(fixture_path: str) -> dict:
     return run_fixture_scan({"hn": fixture_path})
 
 
+def _run_live_source(source: str, domain: str, max_results: int) -> tuple[list[dict], dict]:
+    if source == "hn":
+        scanner = scan_hn_live
+    elif source == "reddit":
+        scanner = scan_reddit_live
+    elif source == "github":
+        scanner = scan_github_live
+    else:
+        raise click.ClickException(f"unsupported live source: {source}")
+
+    try:
+        candidates = scanner(domain, max_results=max_results)
+    except ProviderError as exc:
+        return [], {
+            "source": source,
+            "status": "transport_error",
+            "error_type": type(exc).__name__,
+            "message": str(exc),
+            "count": 0,
+        }
+    except (KeyError, TypeError, ValueError) as exc:
+        return [], {
+            "source": source,
+            "status": "payload_error",
+            "error_type": type(exc).__name__,
+            "message": str(exc),
+            "count": 0,
+        }
+
+    return candidates, {"source": source, "status": "ok", "count": len(candidates)}
+
+
 def run_live_scan(domain: str, sources: list[str] | None = None, max_results: int = 3) -> dict:
     selected_sources = sources or ["hn"]
     candidates = []
+    source_attempts = []
     for source in selected_sources:
-        if source == "hn":
-            candidates.extend(scan_hn_live(domain, max_results=max_results))
-        elif source == "reddit":
-            candidates.extend(scan_reddit_live(domain, max_results=max_results))
-        elif source == "github":
-            candidates.extend(scan_github_live(domain, max_results=max_results))
-        else:
-            raise click.ClickException(f"unsupported live source: {source}")
-    scored: list[dict] = []
-    discard_log: list[dict] = []
-
-    for index, candidate in enumerate(candidates, start=1):
-        opportunity, discard = _candidate_to_opportunity(index, candidate)
-        if opportunity is not None:
-            scored.append(opportunity)
-        if discard is not None:
-            discard_log.append(discard)
+        source_candidates, attempt = _run_live_source(source, domain, max_results)
+        candidates.extend(source_candidates)
+        source_attempts.append(attempt)
+    if source_attempts and all(attempt["status"] != "ok" for attempt in source_attempts):
+        raise click.ClickException("all live sources failed")
+    scored, discard_log = _process_candidates(candidates)
 
     deduped = dedupe_by_cluster(scored)
     ranked = rank_opportunities(deduped)
-    return {"opportunities": ranked, "discard_log": discard_log}
+    return {"opportunities": ranked, "discard_log": discard_log, "source_attempts": source_attempts}
 
 
 @cli.command()
@@ -172,8 +211,8 @@ def spec(input_path: str, output_path: str) -> None:
 @click.option("--output-dir", required=True, type=click.Path(file_okay=False))
 def build(spec_path: str, output_dir: str) -> None:
     """Run the build stage."""
-    spec_payload = _load_json(spec_path)
-    if not approve_spec(spec_payload):
+    spec_payload = ProductSpec.model_validate(_load_json(spec_path))
+    if not approve_spec(spec_payload.model_dump(mode="json")):
         raise click.ClickException("spec must be approved before build")
     build_wedge_app(spec_payload, Path(output_dir))
     click.echo(output_dir)
@@ -184,7 +223,7 @@ def build(spec_path: str, output_dir: str) -> None:
 @click.option("--output", "output_path", required=True, type=click.Path(dir_okay=False))
 def ship(spec_path: str, output_path: str) -> None:
     """Run the ship stage."""
-    spec_payload = _load_json(spec_path)
+    spec_payload = ProductSpec.model_validate(_load_json(spec_path))
     if not can_deploy(spec_payload):
         raise click.ClickException("spec must be approved before deploy")
     deployment = build_deployment_metadata(spec_payload)
@@ -196,7 +235,11 @@ def ship(spec_path: str, output_path: str) -> None:
 @click.option("--input", "input_path", required=True, type=click.Path(exists=True, dir_okay=False))
 def track(input_path: str) -> None:
     """Run the track stage."""
-    click.echo(json.dumps(load_metrics(input_path)))
+    try:
+        payload = load_metrics(input_path)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(json.dumps(payload))
 
 
 if __name__ == "__main__":

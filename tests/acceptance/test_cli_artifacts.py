@@ -64,6 +64,35 @@ def test_build_command_creates_artifact_for_approved_spec(tmp_path):
     output_dir = tmp_path / "build"
     spec_path.write_text(
         json.dumps(
+                {
+                    "opportunity_id": "opp_001",
+                    "title": "Invoice chase automation",
+                    "approved": True,
+                    "sources": [
+                        {
+                            "source_url": "https://example.com/post",
+                            "verbatim_quote": "I need this",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    result = CliRunner().invoke(
+        cli,
+        ["build", "--spec", str(spec_path), "--output-dir", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert (output_dir / "package.json").exists()
+
+
+def test_build_command_rejects_malformed_approved_spec(tmp_path):
+    spec_path = tmp_path / "spec.json"
+    output_dir = tmp_path / "build"
+    spec_path.write_text(
+        json.dumps(
             {
                 "opportunity_id": "opp_001",
                 "title": "Invoice chase automation",
@@ -79,8 +108,8 @@ def test_build_command_creates_artifact_for_approved_spec(tmp_path):
         ["build", "--spec", str(spec_path), "--output-dir", str(output_dir)],
     )
 
-    assert result.exit_code == 0
-    assert (output_dir / "package.json").exists()
+    assert result.exit_code != 0
+    assert not (output_dir / "package.json").exists()
 
 
 def test_ship_command_blocks_unapproved_spec(tmp_path):
@@ -112,6 +141,38 @@ def test_ship_command_writes_deployment_metadata_for_approved_spec(tmp_path):
     deploy_path = tmp_path / "deploy.json"
     spec_path.write_text(
         json.dumps(
+                {
+                    "opportunity_id": "opp_001",
+                    "title": "Invoice chase automation",
+                    "approved": True,
+                    "sources": [
+                        {
+                            "source_url": "https://example.com/post",
+                            "verbatim_quote": "I need this",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    result = CliRunner().invoke(
+        cli,
+        ["ship", "--spec", str(spec_path), "--output", str(deploy_path)],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(deploy_path.read_text(encoding="utf-8"))
+    assert payload["status"] == "dry_run"
+    assert payload["project_id"] == "opp_001"
+    assert payload["url"] is None
+
+
+def test_ship_command_rejects_malformed_approved_spec(tmp_path):
+    spec_path = tmp_path / "spec.json"
+    deploy_path = tmp_path / "deploy.json"
+    spec_path.write_text(
+        json.dumps(
             {
                 "opportunity_id": "opp_001",
                 "title": "Invoice chase automation",
@@ -127,10 +188,8 @@ def test_ship_command_writes_deployment_metadata_for_approved_spec(tmp_path):
         ["ship", "--spec", str(spec_path), "--output", str(deploy_path)],
     )
 
-    assert result.exit_code == 0
-    payload = json.loads(deploy_path.read_text(encoding="utf-8"))
-    assert payload["status"] == "deployed"
-    assert payload["project_id"] == "opp_001"
+    assert result.exit_code != 0
+    assert not deploy_path.exists()
 
 
 def test_track_command_reads_persisted_metrics(tmp_path):
@@ -147,5 +206,19 @@ def test_track_command_reads_persisted_metrics(tmp_path):
 
     assert result.exit_code == 0
     payload = json.loads(result.output)
-    assert payload["visits"] == 12
-    assert payload["signups"] == 3
+    assert payload["status"] == "ok"
+    assert payload["proof_level"] == "unspecified"
+    assert payload["metrics"]["visits"] == 12
+    assert payload["metrics"]["signups"] == 3
+
+
+def test_track_command_rejects_missing_metrics(tmp_path):
+    metrics_path = tmp_path / "metrics.json"
+    metrics_path.write_text(json.dumps({"visits": 12}), encoding="utf-8")
+
+    result = CliRunner().invoke(
+        cli,
+        ["track", "--input", str(metrics_path)],
+    )
+
+    assert result.exit_code != 0

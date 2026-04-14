@@ -1,10 +1,22 @@
 import json
 from pathlib import Path
 
+from evidentia.models import ProductSpec
 
-def build_wedge_app(spec: dict, output_dir: Path) -> Path:
+
+def _resolve_spec_title(spec: ProductSpec | dict) -> str:
+    if isinstance(spec, ProductSpec):
+        return spec.title
+    title = spec.get("title") if isinstance(spec, dict) else None
+    if not isinstance(title, str) or not title.strip():
+        raise ValueError("spec title is required")
+    return title
+
+
+def build_wedge_app(spec: ProductSpec | dict, output_dir: Path) -> Path:
+    title = _resolve_spec_title(spec)
     output_dir.mkdir(parents=True, exist_ok=True)
-    package_name = spec["title"].lower().replace(" ", "-")
+    package_name = title.lower().replace(" ", "-")
     package_json = {
         "name": package_name,
         "version": "0.1.0",
@@ -20,7 +32,7 @@ def build_wedge_app(spec: dict, output_dir: Path) -> Path:
     app_dir.mkdir(exist_ok=True)
     (app_dir / "page.tsx").write_text(
         "export default function Page() {\n"
-        f"  return <main><h1>{spec['title']}</h1></main>;\n"
+        f"  return <main><h1>{title}</h1></main>;\n"
         "}\n",
         encoding="utf-8",
     )

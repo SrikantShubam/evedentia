@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, HttpUrl, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StringConstraints
 from typing import Annotated
 
 
@@ -31,4 +31,16 @@ class ProductSpec(BaseModel):
     opportunity_id: NonEmptyStr
     title: NonEmptyStr
     approved: bool
-    sources: list[SourceEvidence]
+    sources: Annotated[list[SourceEvidence], Field(min_length=1)]
+
+
+class DeploymentMetadata(BaseModel):
+    model_config = ConfigDict(strict=True)
+
+    status: NonEmptyStr
+    target: NonEmptyStr
+    project_id: NonEmptyStr
+    url: HttpUrl | None = None
+    deployment_id: NonEmptyStr | None = None
+    proof_level: NonEmptyStr
+    detail: NonEmptyStr | None = None

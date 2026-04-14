@@ -28,3 +28,19 @@ def test_pursue_requires_all_three_gates():
 
     assert result["verdict"] == "PURSUE"
     assert result["score"] > 0
+
+
+def test_failed_gate_cannot_be_overridden_by_heuristics():
+    opportunity = {
+        "willingness_to_pay": "fail",
+        "distribution_channel": "pass",
+        "data_feasibility": "pass",
+        "competition_gap": 1.0,
+        "buildability": 1.0,
+        "reachability_strength": 1.0,
+    }
+
+    result = score_opportunity(opportunity)
+
+    assert result["verdict"] == "HOLD"
+    assert result["score"] == 0
