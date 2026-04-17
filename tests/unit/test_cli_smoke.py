@@ -8,3 +8,6 @@ def test_cli_help_renders():
 
     assert result.exit_code == 0
     assert "scan" in result.output
+    assert "audit" in result.output
+    assert "classify" in result.output
+    assert "score" in result.output
