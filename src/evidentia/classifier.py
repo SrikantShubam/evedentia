@@ -4,8 +4,28 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from evidentia.providers import build_llm_provider_chain, choose_llm_provider, load_external_provider_env
+
+
+REQUIRED_KEYS = {
+    "willingness_to_pay",
+    "distribution_channel",
+    "data_feasibility",
+    "competition_gap",
+    "buildability",
+    "reachability_strength",
+}
+
+_GATE_KEYS = ("willingness_to_pay", "distribution_channel", "data_feasibility")
+_HEURISTIC_KEYS = ("competition_gap", "buildability", "reachability_strength")
+
+
+class ClassifierError(RuntimeError):
+    def __init__(self, message: str, last_raw_response: Any = None):
+        super().__init__(message)
+        self.last_raw_response = last_raw_response
 
 
 def _classification_prompt(candidate: dict) -> str:
@@ -115,17 +135,46 @@ def _apply_deterministic_gate_overrides(candidate: dict, classification: dict) -
     return normalized
 
 
+def _validate_classification_shape(raw: dict) -> list[str]:
+    violations: list[str] = []
+    if not isinstance(raw, dict):
+        return ["response must be a JSON object"]
+
+    missing = sorted(REQUIRED_KEYS - set(raw.keys()))
+    for key in missing:
+        violations.append(f"missing key: {key}")
+
+    for gate_key in _GATE_KEYS:
+        if gate_key not in raw:
+            continue
+        if not isinstance(raw[gate_key], str):
+            violations.append(f"{gate_key} must be a string")
+
+    for score_key in _HEURISTIC_KEYS:
+        if score_key not in raw:
+            continue
+        value = raw[score_key]
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            violations.append(f"{score_key} must be a number between 0 and 1")
+            continue
+        number = float(value)
+        if number < 0.0 or number > 1.0:
+            violations.append(f"{score_key} must be within [0, 1]")
+    return violations
+
+
 def _append_debug_log(
     debug_log_path: str | None,
     *,
     provider_name: str,
     model: str,
     prompt: str,
-    raw_response,
+    raw_response: Any,
     normalized: dict | None,
 ) -> None:
     if not debug_log_path:
         return
+
     payload = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "provider": provider_name,
@@ -134,10 +183,18 @@ def _append_debug_log(
         "raw_response": raw_response,
         "normalized": normalized,
     }
-    path = Path(debug_log_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as fh:
+    log_path = Path(debug_log_path)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(payload) + "\n")
+
+
+def _corrective_prompt(base_prompt: str, violations: list[str]) -> str:
+    return (
+        f"{base_prompt}\n\n"
+        f"Your previous response was invalid: {', '.join(violations)}. "
+        "Return ONLY the JSON object with exact keys and types specified."
+    )
 
 
 def classify_candidate(
@@ -154,53 +211,83 @@ def classify_candidate(
     elif provider is not None and model is not None:
         candidates = [(provider, model)]
     elif provider is not None:
-        resolved_provider, resolved_model = provider, model or "default-model"
-        candidates = [(resolved_provider, resolved_model)]
+        candidates = [(provider, model or "default-model")]
     else:
         candidates = build_llm_provider_chain(runtime_env)
 
-    prompt = _classification_prompt(candidate)
-    last_error: Exception | None = None
+    base_prompt = _classification_prompt(candidate)
+    last_raw_response: Any = None
+    last_issue: Exception | str | None = None
+
     for resolved_provider, resolved_model in candidates:
         provider_name = getattr(resolved_provider, "name", resolved_provider.__class__.__name__)
         try:
-            classification = resolved_provider.generate_json(prompt=prompt, model=resolved_model)
-            normalized = _normalize_classification(classification)
+            raw_response = resolved_provider.generate_json(
+                prompt=base_prompt,
+                model=resolved_model,
+            )
+            last_raw_response = raw_response
+            violations = _validate_classification_shape(raw_response)
+            prompt_used = base_prompt
+
+            if violations:
+                prompt_used = _corrective_prompt(base_prompt, violations)
+                raw_response = resolved_provider.generate_json(
+                    prompt=prompt_used,
+                    model=resolved_model,
+                )
+                last_raw_response = raw_response
+                violations = _validate_classification_shape(raw_response)
+
+            if violations:
+                last_issue = "; ".join(violations)
+                _append_debug_log(
+                    debug_log_path,
+                    provider_name=provider_name,
+                    model=resolved_model,
+                    prompt=prompt_used,
+                    raw_response=raw_response,
+                    normalized=None,
+                )
+                continue
+
+            normalized = _normalize_classification(raw_response)
             normalized = _apply_deterministic_gate_overrides(candidate, normalized)
             _append_debug_log(
                 debug_log_path,
                 provider_name=provider_name,
                 model=resolved_model,
-                prompt=prompt,
-                raw_response=classification,
+                prompt=prompt_used,
+                raw_response=raw_response,
                 normalized=normalized,
             )
             return {**candidate, **normalized}
         except Exception as exc:  # noqa: BLE001
-            last_error = exc
+            last_issue = exc
             _append_debug_log(
                 debug_log_path,
                 provider_name=provider_name,
                 model=resolved_model,
-                prompt=prompt,
+                prompt=base_prompt,
                 raw_response={"error": str(exc)},
                 normalized=None,
             )
             continue
 
-    if last_error is not None:
-        raise last_error
+    if provider is None and provider_chain is None:
+        try:
+            resolved_provider, resolved_model = choose_llm_provider(runtime_env)
+            return classify_candidate(
+                candidate,
+                provider=resolved_provider,
+                model=resolved_model,
+                env=runtime_env,
+                debug_log_path=debug_log_path,
+            )
+        except Exception as exc:  # noqa: BLE001
+            last_issue = exc
 
-    resolved_provider, resolved_model = choose_llm_provider(runtime_env)
-    classification = resolved_provider.generate_json(prompt=prompt, model=resolved_model)
-    normalized = _normalize_classification(classification)
-    normalized = _apply_deterministic_gate_overrides(candidate, normalized)
-    _append_debug_log(
-        debug_log_path,
-        provider_name=getattr(resolved_provider, "name", resolved_provider.__class__.__name__),
-        model=resolved_model,
-        prompt=prompt,
-        raw_response=classification,
-        normalized=normalized,
-    )
-    return {**candidate, **normalized}
+    message = "classification failed after provider chain exhausted"
+    if last_issue is not None:
+        message = f"{message}: {last_issue}"
+    raise ClassifierError(message, last_raw_response=last_raw_response)

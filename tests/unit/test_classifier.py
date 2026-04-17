@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from evidentia.classifier import classify_candidate
+from evidentia.classifier import ClassifierError, classify_candidate
 
 
 class StubProvider:
@@ -130,3 +130,57 @@ def test_classify_candidate_debug_log(tmp_path):
     assert len(lines) == 1
     entry = json.loads(lines[0])
     assert "raw_response" in entry and "normalized" in entry and "prompt" in entry
+
+
+def test_validate_classification_shape():
+    from evidentia.classifier import _validate_classification_shape
+
+    assert _validate_classification_shape(
+        {
+            "willingness_to_pay": "pass",
+            "distribution_channel": "pass",
+            "data_feasibility": "pass",
+            "competition_gap": 0.5,
+            "buildability": 0.5,
+            "reachability_strength": 0.5,
+        }
+    ) == []
+    assert _validate_classification_shape({"willingness_to_pay": "yes"})
+
+
+def test_classifier_retries_on_bad_shape():
+    calls = {"n": 0}
+
+    class FlakeyProvider:
+        def generate_json(self, prompt, model):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return {"willingness_to_pay": "yes"}
+            return {
+                "willingness_to_pay": "pass",
+                "distribution_channel": "pass",
+                "data_feasibility": "pass",
+                "competition_gap": 0.5,
+                "buildability": 0.5,
+                "reachability_strength": 0.5,
+            }
+
+    result = classify_candidate(
+        {"title": "t", "verbatim_quote": "q", "source_text": "s"},
+        provider=FlakeyProvider(),
+        model="fake",
+    )
+    assert calls["n"] == 2
+    assert result["willingness_to_pay"] == "pass"
+
+
+def test_classifier_raises_after_retries_exhausted():
+    class BadProvider:
+        def generate_json(self, prompt, model):
+            return {"nope": "bad"}
+
+    with pytest.raises(ClassifierError):
+        classify_candidate(
+            {"title": "t", "verbatim_quote": "q", "source_text": "s"},
+            provider_chain=[(BadProvider(), "m")],
+        )
