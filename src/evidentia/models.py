@@ -1,8 +1,15 @@
+from enum import Enum
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StringConstraints
 from typing import Annotated
 
 
 NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+class Verdict(str, Enum):
+    KILL = "KILL"
+    REFINE = "REFINE"
+    PURSUE = "PURSUE"
 
 
 class SourceEvidence(BaseModel):

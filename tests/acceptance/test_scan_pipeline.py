@@ -21,6 +21,9 @@ def test_scan_command_writes_ranked_verified_opportunities(tmp_path):
     assert top["score"] > 0
     assert top["verified_signals"][0]["source_url"].startswith("https://")
     assert top["verified_signals"][0]["verbatim_quote"]
+    assert top["hypothesis_validation"]["status"] in {"keep", "revise", "kill"}
+    assert "reason" in top["hypothesis_validation"]
+    assert top["hypothesis"]["hypothesis_type"] in {"replacement_wedge", "new_category", "workflow_fix"}
 
 
 def test_scan_command_records_discards_and_blocks_non_pursue_inputs(tmp_path):
@@ -37,7 +40,8 @@ def test_scan_command_records_discards_and_blocks_non_pursue_inputs(tmp_path):
         {
             "source_url": "https://news.ycombinator.com/item?id=3",
             "verbatim_quote": "Missing from the page",
-            "reason": "quote_not_found",
+            "reason": "quote_not_verifiable",
         }
     ]
-    assert [item["verdict"] for item in payload["opportunities"]] == ["HOLD"]
+    assert [item["verdict"] for item in payload["opportunities"]] == ["REFINE"]
+    assert payload["opportunities"][0]["hypothesis_validation"]["status"] in {"keep", "revise", "kill"}

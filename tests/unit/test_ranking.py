@@ -26,8 +26,8 @@ def test_rank_uses_heuristics_only_after_gates():
     ranked = rank_opportunities(opportunities)
 
     assert [item["opportunity_id"] for item in ranked] == ["opp_b", "opp_a"]
-    assert ranked[1]["verdict"] == "PURSUE"
-    assert ranked[0]["verdict"] == "PURSUE"
+    assert ranked[0]["verdict"] == "REFINE"
+    assert ranked[1]["verdict"] == "REFINE"
 
 
 def test_rank_does_not_resurrect_failed_gate():
@@ -57,5 +57,5 @@ def test_rank_does_not_resurrect_failed_gate():
     ranked = rank_opportunities(opportunities, reference_timestamp="2026-04-14T00:00:00Z")
 
     blocked = next(item for item in ranked if item["opportunity_id"] == "opp_blocked")
-    assert blocked["verdict"] == "HOLD"
+    assert blocked["verdict"] == "REFINE"
     assert blocked["score"] == 0
