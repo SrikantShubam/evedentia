@@ -1,3 +1,7 @@
+import json
+
+import pytest
+
 from evidentia.classifier import classify_candidate
 
 
@@ -15,16 +19,17 @@ class StubProvider:
         }
 
 
-def test_classify_candidate_uses_llm_output_for_gate_fields():
-    candidate = {
+def _candidate() -> dict:
+    return {
         "title": "Invoice reminder automation",
         "source_text": "Teams say they would pay for this if it saved AR time.",
         "verbatim_quote": "would pay for this",
         "source_url": "https://news.ycombinator.com/item?id=1",
     }
 
-    classified = classify_candidate(candidate, provider=StubProvider(), model="stub-model")
 
+def test_classify_candidate_uses_llm_output_for_gate_fields():
+    classified = classify_candidate(_candidate(), provider=StubProvider(), model="stub-model")
     assert classified["willingness_to_pay"] == "pass"
     assert classified["distribution_channel"] == "pass"
     assert classified["competition_gap"] == 0.8
@@ -38,18 +43,10 @@ class FailingProvider:
 
 
 def test_classify_candidate_falls_back_to_next_provider():
-    candidate = {
-        "title": "Invoice reminder automation",
-        "source_text": "Teams say they would pay for this if it saved AR time.",
-        "verbatim_quote": "would pay for this",
-        "source_url": "https://news.ycombinator.com/item?id=1",
-    }
-
     classified = classify_candidate(
-        candidate,
+        _candidate(),
         provider_chain=[(FailingProvider(), "fail-model"), (StubProvider(), "stub-model")],
     )
-
     assert classified["willingness_to_pay"] == "pass"
 
 
@@ -61,25 +58,75 @@ class MessyProvider:
             "willingness_to_pay": "High",
             "distribution_channel": "Direct",
             "data_feasibility": "Moderate",
-            "competition_gap": "High",
-            "buildability": "Moderate",
-            "reachability_strength": "Low",
+            "competition_gap": 0.9,
+            "buildability": 0.6,
+            "reachability_strength": 0.2,
         }
 
 
 def test_classify_candidate_normalizes_llm_labels():
-    candidate = {
-        "title": "Invoice reminder automation",
-        "source_text": "Teams say they would pay for this if it saved AR time.",
-        "verbatim_quote": "would pay for this",
-        "source_url": "https://news.ycombinator.com/item?id=1",
-    }
-
-    classified = classify_candidate(candidate, provider=MessyProvider(), model="messy-model")
-
+    classified = classify_candidate(_candidate(), provider=MessyProvider(), model="messy-model")
     assert classified["willingness_to_pay"] == "pass"
     assert classified["distribution_channel"] == "pass"
     assert classified["data_feasibility"] == "pass"
-    assert classified["competition_gap"] == 1.0
+    assert classified["competition_gap"] == 0.9
     assert classified["buildability"] == 0.6
     assert classified["reachability_strength"] == 0.2
+
+
+def test_classification_prompt_caps_source_text():
+    from evidentia.classifier import _classification_prompt
+
+    long_candidate = {
+        "title": "test",
+        "verbatim_quote": "quote",
+        "source_text": "x" * 5000,
+    }
+    prompt = _classification_prompt(long_candidate)
+    assert prompt.count("x") <= 1000
+
+
+def test_tester_recruitment_forces_willingness_to_pay_fail():
+    candidate = {
+        "title": "Need 20 testers for Money Master",
+        "source_text": "I will test back immediately for 14 days.",
+        "verbatim_quote": "Need 20 testers, I will test back",
+        "source_url": "https://www.reddit.com/r/TestersCommunity/comments/abc/",
+    }
+    classified = classify_candidate(candidate, provider=StubProvider(), model="stub-model")
+    assert classified["willingness_to_pay"] == "fail"
+    assert classified["distribution_channel"] == "pass"
+    assert classified["data_feasibility"] == "pass"
+
+
+@pytest.mark.parametrize(
+    "label,expected",
+    [
+        ("strong", "pass"),
+        ("confirmed", "pass"),
+        ("explicit", "pass"),
+        ("0.7", "pass"),
+        ("0.3", "fail"),
+        ("insufficient evidence", "fail"),
+        ("n/a", "fail"),
+        ("none", "fail"),
+    ],
+)
+def test_normalize_gate_extended_labels(label, expected):
+    from evidentia.classifier import _normalize_gate
+
+    assert _normalize_gate(label) == expected
+
+
+def test_classify_candidate_debug_log(tmp_path):
+    log_path = tmp_path / "log.jsonl"
+    classify_candidate(
+        {"title": "x", "verbatim_quote": "y", "source_text": "z"},
+        provider=StubProvider(),
+        model="fake",
+        debug_log_path=str(log_path),
+    )
+    lines = log_path.read_text().strip().splitlines()
+    assert len(lines) == 1
+    entry = json.loads(lines[0])
+    assert "raw_response" in entry and "normalized" in entry and "prompt" in entry
