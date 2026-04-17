@@ -11,3 +11,7 @@ def test_cli_help_renders():
     assert "audit" in result.output
     assert "classify" in result.output
     assert "score" in result.output
+    assert "hunt" in result.output
+    assert "generate" in result.output
+    assert "loop" in result.output
+    assert "best" in result.output

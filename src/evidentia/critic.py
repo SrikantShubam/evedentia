@@ -87,6 +87,9 @@ def _gate_slice_underserved(
     llm_model: str | None = None,
 ) -> tuple[bool, dict[str, Any]]:
     del anchor
+    if str(env.get("EVIDENTIA_DRY_RUN", "")).strip().lower() in {"1", "true", "yes"}:
+        return True, {"underserved": "yes", "named_competitors": [], "titles": []}
+
     query = f'"{slice_obj.label}" app OR saas'
     titles: list[str] = []
     try:

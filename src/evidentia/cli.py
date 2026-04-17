@@ -5,13 +5,20 @@ from datetime import datetime, timezone
 
 import click
 
+from evidentia.anchor import AnchorVerificationError, anchors_root, load_all_anchors, load_anchor, verify_anchor
 from evidentia.auditor import verify_quote
+from evidentia.clusterer import cluster_signals
 from evidentia.classifier import classify_candidate
-from evidentia.providers import ProviderError
+from evidentia.critic import critique_slice
+from evidentia.generator import generate_ideas_from_anchor, generate_ideas_from_pursue
+from evidentia.models import Anchor, DemandSignal
+from evidentia.outputs import append_to_index, top_ideas as top_index_ideas, write_run
+from evidentia.providers import ProviderError, load_external_provider_env
 from evidentia.scanners import FIXTURE_SCANNERS
 from evidentia.scanners.github import scan_github_live
 from evidentia.scanners.hn import scan_hn_fixture, scan_hn_live
 from evidentia.scanners.reddit import scan_reddit_live
+from evidentia.scanners.reviews import listen
 from evidentia.scoring import (
     dedupe_by_cluster,
     dedupe_by_content_fingerprint,
@@ -79,6 +86,128 @@ _SEMANTIC_STOPWORDS = {
 @click.group()
 def cli() -> None:
     """Evidentia — harsh critic for demand-signal ideas. Verdicts: KILL / REFINE / PURSUE."""
+
+
+def _safe_run_timestamp(now: datetime | None = None) -> str:
+    instant = now or datetime.now(timezone.utc)
+    return instant.strftime("%Y-%m-%dT%H-%M-%SZ")
+
+
+def _index_path() -> Path:
+    return Path("outputs") / "best_ideas.jsonl"
+
+
+def _run_dir(anchor_slug: str, now: datetime | None = None) -> Path:
+    return Path("outputs") / "hunts" / anchor_slug / _safe_run_timestamp(now=now)
+
+
+def _dry_run_signals(anchor: Anchor, limit: int) -> list[DemandSignal]:
+    signals: list[DemandSignal] = []
+    pain_templates = [
+        ("missing_feature", "Wish it had better onboarding for this cohort"),
+        ("pricing_complaint", "This is too expensive and locked behind a paywall"),
+        ("switching_intent", "I am looking for an alternative and ready to switch"),
+        ("cohort_exclusion", "This is not for women and feels excluded"),
+        ("usability_complaint", "The UI is confusing and hard to use"),
+    ]
+    for index in range(1, min(limit, len(pain_templates)) + 1):
+        subtype, pain = pain_templates[index - 1]
+        quote = f"{anchor.market_name}: {pain}"
+        source_url = f"https://www.reddit.com/r/{anchor.slug.replace('-', '')}/comments/dry{index}"
+        signals.append(
+            DemandSignal(
+                signal_id=DemandSignal.build_signal_id(source_url, quote),
+                source_url=source_url,
+                verbatim_quote=quote,
+                timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                title=f"{anchor.market_name} complaint {index}",
+                source_text=quote,
+                source_kind="dry_run",
+                signal_subtype=subtype,
+                author=f"dry_user_{index}",
+                verified=True,
+                proof_level="in_memory",
+            )
+        )
+    return signals
+
+
+def _anchor_files() -> list[Path]:
+    root = anchors_root()
+    return sorted(list(root.glob("*.yaml")) + list(root.glob("*.yml")))
+
+
+def _load_anchor_by_slug(slug: str, *, should_verify: bool = True) -> Anchor:
+    path = anchors_root() / f"{slug}.yaml"
+    if not path.exists():
+        raise click.ClickException(f"anchor not found: {slug}")
+    anchor = load_anchor(path)
+    if not should_verify:
+        return anchor
+    try:
+        return verify_anchor(anchor)
+    except AnchorVerificationError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
+def _run_hunt(anchor: Anchor, *, limit: int, dry_run: bool, env: dict[str, str] | None = None) -> dict:
+    runtime_env = dict(env or {})
+    if dry_run:
+        runtime_env["EVIDENTIA_DRY_RUN"] = "1"
+        signals = _dry_run_signals(anchor, limit=max(limit, 3))
+    else:
+        runtime_env.update(load_external_provider_env())
+        signals = listen(anchor, limit=limit, env=runtime_env)
+
+    slices = cluster_signals(anchor, signals)
+    signals_by_id = {signal.signal_id: signal for signal in signals}
+    verdicts = [critique_slice(slice_obj, signals_by_id, anchor, env=runtime_env) for slice_obj in slices]
+    run_dir = _run_dir(anchor.slug)
+    write_run(run_dir, anchor, signals, slices, verdicts, discards=[])
+    append_to_index(_index_path(), verdicts, anchor, run_dir)
+    return {
+        "anchor_slug": anchor.slug,
+        "run_dir": str(run_dir).replace("\\", "/"),
+        "signal_count": len(signals),
+        "slice_count": len(slices),
+        "verdict_count": len(verdicts),
+    }
+
+
+def _ideas_from_source(anchor_slug: str | None, from_pursues: bool, count: int) -> list[dict]:
+    if from_pursues:
+        pursues = top_index_ideas(_index_path(), verdict="PURSUE", n=max(20, count * 2))
+        return generate_ideas_from_pursue(pursues, count=count)
+    if not anchor_slug:
+        raise click.ClickException("--anchor is required unless --from-pursues is used")
+    return generate_ideas_from_anchor(_load_anchor_by_slug(anchor_slug, should_verify=False), count=count)
+
+
+def _print_best_table(rows: list[dict]) -> None:
+    if not rows:
+        click.echo("No ideas found.")
+        return
+    headers = ["verdict", "anchor", "author_count", "slice_id", "label"]
+    widths = {header: len(header) for header in headers}
+    normalized_rows: list[dict[str, str]] = []
+    for row in rows:
+        normalized = {
+            "verdict": str(row.get("verdict", "")),
+            "anchor": str(row.get("anchor_slug", "")),
+            "author_count": str(row.get("author_count", "")),
+            "slice_id": str(row.get("slice_id", "")),
+            "label": str(row.get("label", "")),
+        }
+        normalized_rows.append(normalized)
+        for header in headers:
+            widths[header] = max(widths[header], len(normalized[header]))
+
+    header_line = " | ".join(header.ljust(widths[header]) for header in headers)
+    separator = "-+-".join("-" * widths[header] for header in headers)
+    click.echo(header_line)
+    click.echo(separator)
+    for row in normalized_rows:
+        click.echo(" | ".join(row[header].ljust(widths[header]) for header in headers))
 
 
 def _load_json(path: str) -> dict:
@@ -589,6 +718,99 @@ def score(input_path: str, output_path: str) -> None:
     payload = score_opportunity(opportunity)
     _write_json(output_path, payload)
     click.echo(output_path)
+
+
+@cli.group()
+def anchor() -> None:
+    """Manage market anchors."""
+
+
+@anchor.command("list")
+def anchor_list() -> None:
+    """List all anchors from anchors/."""
+    for path in _anchor_files():
+        click.echo(path.stem)
+
+
+@anchor.command("verify")
+@click.argument("slug")
+def anchor_verify(slug: str) -> None:
+    """Verify one anchor by slug."""
+    verified = _load_anchor_by_slug(slug)
+    click.echo(json.dumps(verified.to_dict(), indent=2))
+
+
+@cli.command("hunt")
+@click.argument("slug")
+@click.option("--limit", type=int, default=50, show_default=True)
+@click.option("--dry-run", is_flag=True, default=False)
+def hunt_command(slug: str, limit: int, dry_run: bool) -> None:
+    """Run one full validate pass for an anchor."""
+    payload = _run_hunt(_load_anchor_by_slug(slug, should_verify=not dry_run), limit=limit, dry_run=dry_run)
+    click.echo(json.dumps(payload, indent=2))
+
+
+@cli.command("hunt-all")
+@click.option("--limit", type=int, default=50, show_default=True)
+@click.option("--dry-run", is_flag=True, default=False)
+def hunt_all_command(limit: int, dry_run: bool) -> None:
+    """Run hunt for all verified anchors."""
+    if dry_run:
+        anchors = [load_anchor(path) for path in _anchor_files()]
+    else:
+        anchors = load_all_anchors()
+    results = [_run_hunt(anchor, limit=limit, dry_run=dry_run) for anchor in anchors]
+    click.echo(json.dumps(results, indent=2))
+
+
+@cli.command("generate")
+@click.option("--anchor", "anchor_slug", type=str)
+@click.option("--from-pursues", is_flag=True, default=False)
+@click.option("--count", type=int, default=10, show_default=True)
+def generate_command(anchor_slug: str | None, from_pursues: bool, count: int) -> None:
+    """Generate niche ideas from one anchor or prior PURSUE entries."""
+    ideas = _ideas_from_source(anchor_slug=anchor_slug, from_pursues=from_pursues, count=count)
+    click.echo(json.dumps({"ideas": ideas}, indent=2))
+
+
+@cli.command("loop")
+@click.option("--iterations", type=int, default=10, show_default=True)
+@click.option("--ideas-per-iter", type=int, default=10, show_default=True)
+@click.option("--anchors", "anchor_filter", type=str)
+@click.option("--max-llm-calls", type=int)
+@click.option("--stop-on-first-pursue", is_flag=True, default=False)
+def loop_command(
+    iterations: int,
+    ideas_per_iter: int,
+    anchor_filter: str | None,
+    max_llm_calls: int | None,
+    stop_on_first_pursue: bool,
+) -> None:
+    """Run the generate->hunt loop."""
+    from evidentia.loop import run_loop
+
+    all_anchors = load_all_anchors()
+    selected_slugs = {slug.strip() for slug in (anchor_filter or "").split(",") if slug.strip()}
+    selected = [anchor for anchor in all_anchors if not selected_slugs or anchor.slug in selected_slugs]
+    if not selected:
+        raise click.ClickException("no anchors selected")
+    summary = run_loop(
+        selected,
+        iterations=iterations,
+        ideas_per_iter=ideas_per_iter,
+        max_llm_calls=max_llm_calls,
+        stop_on_first_pursue=stop_on_first_pursue,
+    )
+    click.echo(json.dumps(summary, indent=2))
+
+
+@cli.command("best")
+@click.option("--verdict", type=str, default="PURSUE", show_default=True)
+@click.option("--n", type=int, default=20, show_default=True)
+def best_command(verdict: str, n: int) -> None:
+    """Show top ideas from outputs/best_ideas.jsonl."""
+    rows = top_index_ideas(_index_path(), verdict=verdict, n=n)
+    _print_best_table(rows)
 
 
 if __name__ == "__main__":
