@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from time import sleep
 import re
+from urllib.parse import quote_plus
 import warnings
 
 from evidentia import auditor
@@ -46,8 +47,9 @@ def _classify_subtype(text: str) -> str:
 
 
 def _lookup_app_id(incumbent: str) -> int | None:
+    encoded_incumbent = quote_plus(incumbent)
     payload = _http_json(
-        f"https://itunes.apple.com/search?term={incumbent}&entity=software&limit=1",
+        f"https://itunes.apple.com/search?term={encoded_incumbent}&entity=software&limit=1",
         method="GET",
     )
     results = payload.get("results") or []
@@ -79,9 +81,11 @@ def _ios_reviews_for_app(incumbent: str, app_id: int) -> list[dict]:
         quote = content or title
         if not quote:
             continue
+        raw_source_url = str((entry.get("id") or {}).get("label", "")).strip()
+        source_url = raw_source_url if raw_source_url.startswith("http") else f"https://apps.apple.com/us/app/id{app_id}"
         reviews.append(
             {
-                "source_url": str((entry.get("id") or {}).get("label", "")),
+                "source_url": source_url,
                 "title": title or f"{incumbent} review",
                 "quote": quote,
                 "source_text": content or quote,

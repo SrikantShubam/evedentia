@@ -99,7 +99,7 @@ def test_run_loop_appends_index_and_returns_summary(monkeypatch, tmp_path):
         ),
     )
 
-    summary = run_loop([anchor], iterations=2, ideas_per_iter=2, env={})
+    summary = run_loop([anchor], iterations=2, ideas_per_iter=3, env={})
 
     index_path = tmp_path / summary["index_path"]
     assert summary["iterations_completed"] == 2

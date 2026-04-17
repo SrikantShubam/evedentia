@@ -1,0 +1,1 @@
+Each anchor hunt run writes artifacts under `outputs/hunts/<anchor_slug>/<timestamp>/` (`anchor.json`, `signals.json`, `slices.json`, `verdicts.json`, `discard_log.json`, `summary.md`), and every verdict is appended to `outputs/best_ideas.jsonl` as a schema-versioned JSONL entry so cross-run top ideas can be queried with simple grep or `evidentia best`.

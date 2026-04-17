@@ -28,5 +28,5 @@ evidentia = "evidentia.cli:cli"
 pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
-  "live: marks tests that are guarded from live execution by default",
+  "live: real network calls; not for CI",
 ]
