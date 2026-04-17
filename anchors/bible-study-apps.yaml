@@ -1,0 +1,19 @@
+slug: bible-study-apps
+market_name: Bible study apps
+incumbents:
+  - YouVersion
+  - Bible.is
+  - Blue Letter Bible
+proof_of_market:
+  verbatim_quote: "Reaches One Billion Installs"
+  source_url: https://www.youversion.com/news/bible-app-reaches-one-billion-installs
+  timestamp: 2025-11-01T00:00:00Z
+cohort_hints:
+  - women
+  - post-evangelical
+  - youth
+  - seniors
+primary_channel_queries:
+  - "site:reddit.com/r/Christianity YouVersion missing"
+  - "site:reddit.com/r/exvangelical"
+  - "site:producthunt.com YouVersion"

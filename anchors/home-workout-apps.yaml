@@ -1,0 +1,19 @@
+slug: home-workout-apps
+market_name: Home workout apps
+incumbents:
+  - Nike Training Club
+  - Peloton
+  - FitOn
+proof_of_market:
+  verbatim_quote: "276K Ratings"
+  source_url: https://apps.apple.com/us/app/nike-training-club/id301521403
+  timestamp: 2026-04-17T00:00:00Z
+cohort_hints:
+  - beginners
+  - postpartum women
+  - busy parents
+  - apartment dwellers
+primary_channel_queries:
+  - "site:reddit.com/r/homegym Nike Training Club missing"
+  - "site:reddit.com/r/pelotoncycle alternative app"
+  - "site:producthunt.com home workout app"

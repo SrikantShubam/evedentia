@@ -1,0 +1,19 @@
+slug: meditation-apps
+market_name: Meditation apps
+incumbents:
+  - Calm
+  - Headspace
+  - Insight Timer
+proof_of_market:
+  verbatim_quote: "1.9M Ratings"
+  source_url: https://apps.apple.com/us/app/calm/id571800810
+  timestamp: 2026-04-17T00:00:00Z
+cohort_hints:
+  - anxious professionals
+  - stressed parents
+  - students
+  - burnout recovery
+primary_channel_queries:
+  - "site:reddit.com/r/Meditation Calm missing feature"
+  - "site:reddit.com/r/Headspace"
+  - "site:producthunt.com meditation app"
