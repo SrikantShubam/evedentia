@@ -101,6 +101,24 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
         save_tournament_result(result, db_path=db_path, now_utc=_utc_now())
         return result.to_dict()
 
+    @app.get("/tournament/{tournament_id}")
+    def get_tournament(tournament_id: str) -> dict:
+        payload = get_tournament_payload(tournament_id, db_path=db_path)
+        if payload is None:
+            raise HTTPException(status_code=404, detail="tournament not found")
+        return payload
+
+    @app.get("/tournament/{tournament_id}/idea/{idea_id}")
+    def get_tournament_idea(tournament_id: str, idea_id: str) -> dict:
+        payload = get_tournament_payload(tournament_id, db_path=db_path)
+        if payload is None:
+            raise HTTPException(status_code=404, detail="tournament not found")
+        for state in payload.get("ideas", []):
+            idea = state.get("idea") or {}
+            if idea.get("id") == idea_id:
+                return state
+        raise HTTPException(status_code=404, detail="idea not found")
+
     @app.get("/tournament/{tournament_id}/memo")
     def get_tournament_memo_route(tournament_id: str) -> dict:
         memo = get_tournament_memo(tournament_id, db_path=db_path)

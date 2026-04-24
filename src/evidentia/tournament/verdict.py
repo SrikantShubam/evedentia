@@ -3,9 +3,7 @@ from __future__ import annotations
 from evidentia.models import GateStatus, RoundOutcome, TerminalVerdict
 from evidentia.models import IdeaState
 from evidentia.tournament.profiles import STRUCTURAL_GATES, required_gates
-
-
-SHORTLIST_CONFIDENCE_THRESHOLD = 0.35
+from evidentia.tournament.settings import SHORTLIST_CONFIDENCE_THRESHOLD
 
 
 def derive_terminal_verdict(

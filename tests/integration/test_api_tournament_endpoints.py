@@ -70,6 +70,14 @@ def test_api_tournament_end_to_end_and_sse(tmp_path):
     assert memo_response.status_code == 200
     assert "tournament_id" in memo_response.json()
 
+    tournament_response = client.get("/tournament/api-t-1")
+    assert tournament_response.status_code == 200
+    assert tournament_response.json()["tournament_id"] == "api-t-1"
+
+    idea_response = client.get("/tournament/api-t-1/idea/i-1")
+    assert idea_response.status_code == 200
+    assert idea_response.json()["idea"]["id"] == "i-1"
+
     with client.stream("GET", "/tournament/api-t-1/sse") as response:
         assert response.status_code == 200
         body = b"".join(response.iter_bytes())

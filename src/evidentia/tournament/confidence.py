@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from evidentia.models import GateStatus, IdeaState, RoundOutcome
+from evidentia.tournament.settings import CONFIDENCE_CEIL, CONFIDENCE_FLOOR
 from evidentia.tournament.profiles import required_gates
 
 
 def clamp_confidence(value: float) -> float:
-    return max(0.5, min(0.95, value))
+    return max(CONFIDENCE_FLOOR, min(CONFIDENCE_CEIL, value))
 
 
 def confidence_product(state: IdeaState) -> float:
