@@ -55,8 +55,25 @@ def test_generate_ideas_from_anchor_shape_and_count():
     )
 
     assert len(ideas) == 2
-    assert all(set(idea.keys()) == {"label", "cohort", "pain_hypothesis", "search_queries"} for idea in ideas)
+    expected_keys = {
+        "label",
+        "cohort",
+        "pain_hypothesis",
+        "search_queries",
+        "kill_condition",
+        "gate_profile",
+        "gate_profile_source",
+        "evidence_ids",
+        "origin",
+        "anchor_slug",
+        "incumbent",
+        "parent_idea_id",
+    }
+    assert all(set(idea.keys()) == expected_keys for idea in ideas)
     assert all(isinstance(idea["search_queries"], list) for idea in ideas)
+    assert all(isinstance(idea["evidence_ids"], list) and idea["evidence_ids"] for idea in ideas)
+    assert all(idea["origin"] == "generator" for idea in ideas)
+    assert all(isinstance(idea["kill_condition"], dict) for idea in ideas)
 
 
 def test_generate_ideas_from_pursue_returns_adjacent_hypotheses():
@@ -85,6 +102,7 @@ def test_generate_ideas_from_pursue_returns_adjacent_hypotheses():
 
     assert len(ideas) == 1
     assert ideas[0]["cohort"] == "grief support groups"
+    assert ideas[0]["origin"] == "reentry"
 
 
 def test_generate_ideas_retries_once_on_invalid_shape():

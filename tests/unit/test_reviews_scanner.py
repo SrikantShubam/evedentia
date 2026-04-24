@@ -125,6 +125,9 @@ def test_listen_collects_and_tags_signals(monkeypatch):
     assert "pricing_complaint" in {signal.signal_subtype for signal in signals}
     assert "usability_complaint" in {signal.signal_subtype for signal in signals}
     assert "switching_intent" in {signal.signal_subtype for signal in signals}
+    assert all(signal.complaint_type for signal in signals)
+    unknowns = [signal for signal in signals if signal.complaint_type == "UNKNOWN_WITH_REASON"]
+    assert all(signal.complaint_type_reason for signal in unknowns)
 
 
 def test_listen_survives_single_source_failures(monkeypatch):

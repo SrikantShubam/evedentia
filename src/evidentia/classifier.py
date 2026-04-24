@@ -107,6 +107,45 @@ def _normalize_classification(classification: dict) -> dict:
     }
 
 
+def _derive_complaint_type(candidate: dict) -> tuple[str, str | None]:
+    text = " ".join(str(candidate.get(key, "")).lower() for key in ("title", "verbatim_quote", "source_text"))
+    mapping = [
+        (("ad", "ads"), "ADS"),
+        (("billing", "charged", "refund"), "BILLING_ABUSE"),
+        (("not for women", "excluded", "cohort"), "NICHE_EXCLUSION"),
+        (("privacy", "trust", "tracking"), "TRUST_PRIVACY"),
+        (("friction", "slow", "manual"), "WORKFLOW_FRICTION"),
+        (("bloated", "too many features"), "FEATURE_BLOAT"),
+        (("support", "no response"), "SUPPORT_FAILURE"),
+        (("localization", "language", "region"), "LOCALIZATION"),
+        (("lock-in", "locked in", "export"), "PLATFORM_LOCK_IN"),
+        (("missing", "wish it had", "should add"), "MISSING_FEATURE"),
+        (("broken", "bug", "doesn't work"), "BROKEN_FEATURE"),
+        (("expensive", "pricing", "paywall"), "PRICING"),
+        (("confusing", "hard to use", "ux", "ui"), "UX"),
+        (("alternative", "switching", "replace"), "SCOPE_MISMATCH"),
+    ]
+    for tokens, label in mapping:
+        if any(token in text for token in tokens):
+            return label, None
+    return "UNKNOWN_WITH_REASON", "No complaint taxonomy match from deterministic text patterns."
+
+
+def _derive_additional_tasks(candidate: dict, normalized: dict) -> dict:
+    text = " ".join(str(candidate.get(key, "")).lower() for key in ("title", "verbatim_quote", "source_text"))
+    complaint_type, complaint_reason = _derive_complaint_type(candidate)
+    cohort_fit = "pass" if any(token in text for token in ("women", "teams", "developers", "agencies")) else "unknown"
+    spend_signal = any(token in text for token in ("pay", "budget", "price", "subscription"))
+    player_fit = "pass" if normalized["buildability"] >= 0.6 and normalized["reachability_strength"] >= 0.5 else "fail"
+    return {
+        "complaint_type": complaint_type,
+        "complaint_type_reason": complaint_reason,
+        "cohort_fit": cohort_fit,
+        "spend_signal": spend_signal,
+        "player_fit": player_fit,
+    }
+
+
 _TESTER_RECRUITMENT_PATTERNS = (
     re.compile(r"\bneed\s+\d+\s+testers?\b"),
     re.compile(r"\bneed\s+testers?\b"),
@@ -253,6 +292,7 @@ def classify_candidate(
 
             normalized = _normalize_classification(raw_response)
             normalized = _apply_deterministic_gate_overrides(candidate, normalized)
+            normalized.update(_derive_additional_tasks(candidate, normalized))
             _append_debug_log(
                 debug_log_path,
                 provider_name=provider_name,

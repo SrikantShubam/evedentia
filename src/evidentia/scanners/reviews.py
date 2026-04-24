@@ -46,6 +46,20 @@ def _classify_subtype(text: str) -> str:
     return "unknown"
 
 
+def _classify_complaint_type(subtype: str, text: str) -> tuple[str, str | None]:
+    mapping = {
+        "pricing_complaint": "PRICING",
+        "usability_complaint": "UX",
+        "missing_feature": "MISSING_FEATURE",
+        "cohort_exclusion": "NICHE_EXCLUSION",
+        "switching_intent": "SCOPE_MISMATCH",
+    }
+    complaint_type = mapping.get(subtype)
+    if complaint_type:
+        return complaint_type, None
+    return "UNKNOWN_WITH_REASON", f"no confident mapping for subtype='{subtype}' from text pattern matching"
+
+
 def _lookup_app_id(incumbent: str) -> int | None:
     encoded_incumbent = quote_plus(incumbent)
     payload = _http_json(
@@ -199,6 +213,7 @@ def _to_signal(candidate: dict) -> DemandSignal | None:
     timestamp = _normalize_timestamp(candidate.get("timestamp"))
     title = str(candidate.get("title", "")).strip() or None
     subtype = _classify_subtype(f"{title or ''} {source_text}")
+    complaint_type, complaint_type_reason = _classify_complaint_type(subtype, f"{title or ''} {source_text}")
     return DemandSignal(
         signal_id=DemandSignal.build_signal_id(source_url, quote),
         source_url=source_url,
@@ -211,6 +226,8 @@ def _to_signal(candidate: dict) -> DemandSignal | None:
         author=candidate.get("author"),
         verified=bool(verification.get("verified")),
         proof_level=str(verification.get("proof_level", "none")),
+        complaint_type=complaint_type,
+        complaint_type_reason=complaint_type_reason,
     )
 
 

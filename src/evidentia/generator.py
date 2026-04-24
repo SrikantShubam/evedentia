@@ -96,6 +96,56 @@ def _normalize_ideas(raw: dict, count: int) -> list[dict]:
     return normalized
 
 
+def _infer_gate_profile(label: str, cohort: str, pain_hypothesis: str) -> tuple[str, float, str]:
+    text = " ".join([label, cohort, pain_hypothesis]).lower()
+    if any(token in text for token in ("extension", "chrome", "firefox", "browser")):
+        return "browser_extension", 0.85, "store_category_not_saturated"
+    if any(token in text for token in ("agency", "client work", "retainer")):
+        return "agency_service", 0.86, "repeat_purchase_evidence"
+    if any(token in text for token in ("workflow", "procurement", "finance team", "ops team", "b2b")):
+        return "b2b_workflow", 0.82, "budget_owner_identifiable"
+    return "consumer_app", 0.74, "complaint_signal_exists"
+
+
+def _with_tournament_fields(
+    ideas: list[dict],
+    *,
+    anchor: Anchor | None,
+    origin: str,
+    pursue_entries: list[dict] | None = None,
+) -> list[dict]:
+    enriched: list[dict] = []
+    seed_anchor = None
+    seed_parent = None
+    seed_evidence: list[str] = []
+    if pursue_entries:
+        seed_anchor = pursue_entries[0].get("anchor_slug")
+        seed_parent = pursue_entries[0].get("idea_id")
+        seed_evidence = [str(item) for item in pursue_entries[0].get("evidence_ids", []) if str(item).strip()]
+    for idea in ideas:
+        profile, conf, kill_gate = _infer_gate_profile(idea["label"], idea["cohort"], idea["pain_hypothesis"])
+        evidence_ids = seed_evidence or ([anchor.proof_of_market.signal_id] if anchor else [])
+        if not evidence_ids:
+            evidence_ids = [f"seed-{idea['label'].lower().replace(' ', '-')[:24]}"]
+        enriched.append(
+            {
+                **idea,
+                "kill_condition": {
+                    "description": f"Fail if {kill_gate} does not pass.",
+                    "gate_name": kill_gate,
+                },
+                "gate_profile": profile,
+                "gate_profile_source": f"inferred:{conf:.2f}",
+                "evidence_ids": evidence_ids,
+                "origin": origin,
+                "anchor_slug": anchor.slug if anchor else seed_anchor,
+                "incumbent": anchor.incumbents[0] if anchor and anchor.incumbents else None,
+                "parent_idea_id": seed_parent if origin == "reentry" else None,
+            }
+        )
+    return enriched
+
+
 def _append_debug_log(
     debug_log_path: str | None,
     *,
@@ -225,7 +275,7 @@ def generate_ideas_from_anchor(
     provider_chain: list[tuple[object, str]] | None = None,
 ) -> list[dict]:
     prompt = _anchor_prompt(anchor, count=count)
-    return _generate_ideas(
+    ideas = _generate_ideas(
         prompt,
         count=count,
         env=env,
@@ -234,6 +284,7 @@ def generate_ideas_from_anchor(
         model=model,
         provider_chain=provider_chain,
     )
+    return _with_tournament_fields(ideas, anchor=anchor, origin="generator")
 
 
 def generate_ideas_from_pursue(
@@ -246,7 +297,7 @@ def generate_ideas_from_pursue(
     provider_chain: list[tuple[object, str]] | None = None,
 ) -> list[dict]:
     prompt = _pursue_prompt(pursue_entries, count=count)
-    return _generate_ideas(
+    ideas = _generate_ideas(
         prompt,
         count=count,
         env=env,
@@ -255,3 +306,4 @@ def generate_ideas_from_pursue(
         model=model,
         provider_chain=provider_chain,
     )
+    return _with_tournament_fields(ideas, anchor=None, origin="reentry", pursue_entries=pursue_entries)

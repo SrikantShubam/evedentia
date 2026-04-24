@@ -33,6 +33,10 @@ def test_classify_candidate_uses_llm_output_for_gate_fields():
     assert classified["willingness_to_pay"] == "pass"
     assert classified["distribution_channel"] == "pass"
     assert classified["competition_gap"] == 0.8
+    assert "complaint_type" in classified
+    assert "cohort_fit" in classified
+    assert "spend_signal" in classified
+    assert "player_fit" in classified
 
 
 class FailingProvider:
