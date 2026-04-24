@@ -349,7 +349,7 @@ def _derive_reentry_rows_from_parent(parent_payload: dict, *, require_narrow: bo
                     "label": str(parent_idea.get("label", "reentry idea")),
                     "anchor_slug": parent_idea.get("anchor_slug"),
                     "incumbent": parent_idea.get("incumbent"),
-                    "cohort": f"{parent_cohort} with urgent budget constraints".strip(),
+                    "cohort": f"{parent_cohort} with compliance constraints".strip(),
                     "pain_hypothesis": str(parent_idea.get("pain_hypothesis", "Need sharper evidence")),
                     "kill_condition": parent_idea.get("kill_condition"),
                     "evidence_ids": parent_evidence + [new_evidence],
@@ -388,14 +388,49 @@ def _validate_reentry_rules(ideas: list[Idea], parent_payload: dict, *, player: 
         parent = parent_by_id.get(idea.parent_idea_id)
         if parent is None:
             raise click.ClickException("reentry parent_idea_id must reference an INSUFFICIENT_EVIDENCE parent")
-        parent_cohort = str(parent.get("cohort", "")).strip().lower()
-        child_cohort = idea.cohort.strip().lower()
-        if not parent_cohort or child_cohort == parent_cohort or parent_cohort not in child_cohort:
+        parent_cohort = str(parent.get("cohort", "")).strip()
+        child_cohort = idea.cohort.strip()
+        if not _is_narrower_cohort(parent_cohort, child_cohort):
             raise click.ClickException("reentry cohort must be narrower than parent cohort")
         parent_evidence = {str(item) for item in parent.get("evidence_ids", [])}
         child_evidence = set(idea.evidence_ids)
         if not (child_evidence - parent_evidence):
             raise click.ClickException("reentry idea must include at least one new evidence_id")
+
+
+def _cohort_tokens(value: str) -> set[str]:
+    stopwords = {
+        "the",
+        "and",
+        "for",
+        "with",
+        "that",
+        "this",
+        "from",
+        "into",
+        "very",
+        "small",
+        "medium",
+        "large",
+        "urgent",
+        "budget",
+        "constraints",
+    }
+    tokens = re.findall(r"[a-z0-9]{3,}", value.lower())
+    return {token for token in tokens if token not in stopwords}
+
+
+def _is_narrower_cohort(parent_cohort: str, child_cohort: str) -> bool:
+    if not parent_cohort.strip() or not child_cohort.strip():
+        return False
+    parent = _cohort_tokens(parent_cohort)
+    child = _cohort_tokens(child_cohort)
+    if not parent or not child:
+        return False
+    if not parent.issubset(child):
+        return False
+    extra = child - parent
+    return len(extra) >= 1
 
 
 def _profile_confidence(gate_profile_source: str) -> float | None:
