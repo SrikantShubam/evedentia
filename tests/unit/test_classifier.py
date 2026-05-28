@@ -188,3 +188,39 @@ def test_classifier_raises_after_retries_exhausted():
             {"title": "t", "verbatim_quote": "q", "source_text": "s"},
             provider_chain=[(BadProvider(), "m")],
         )
+
+
+# ---------------------------------------------------------------------------
+# TASK 02 tests for the new public classify_complaint function
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "text,expected_type",
+    [
+        ("Too many ads in the app", "ADS"),
+        ("They charged me twice and refused refund", "BILLING_ABUSE"),
+        ("This tool is not for women or small teams", "NICHE_EXCLUSION"),
+        ("I don't trust how they track my data", "TRUST_PRIVACY"),
+        ("The workflow is too slow and manual", "WORKFLOW_FRICTION"),
+        ("The app is bloated with too many features", "FEATURE_BLOAT"),
+        ("Support never responds to my tickets", "SUPPORT_FAILURE"),
+        ("No support for Spanish or other languages", "LOCALIZATION"),
+        ("Can't export my data, locked in", "PLATFORM_LOCK_IN"),
+        ("Wish it had bulk import and better search", "MISSING_FEATURE"),
+        ("The export button is broken and crashes", "BROKEN_FEATURE"),
+        ("Way too expensive, paywall for basic features", "PRICING"),
+        ("The UI is confusing and hard to use", "UX"),
+        ("Looking for an alternative to replace this", "SCOPE_MISMATCH"),
+        ("Random text with no clear complaint here", "UNKNOWN_WITH_REASON"),
+        ("", "UNKNOWN_WITH_REASON"),
+    ],
+)
+def test_classify_complaint_covers_all_types(text, expected_type):
+    from evidentia.classifier import classify_complaint
+
+    ctype, reason = classify_complaint(text)
+    assert ctype == expected_type
+    if expected_type == "UNKNOWN_WITH_REASON":
+        assert reason  # should have a reason
+    else:
+        assert reason == "" or reason is not None

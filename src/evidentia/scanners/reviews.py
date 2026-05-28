@@ -8,6 +8,7 @@ from urllib.parse import quote_plus
 import warnings
 
 from evidentia import auditor
+from evidentia.classifier import classify_complaint
 from evidentia.models import Anchor, DemandSignal
 from evidentia.providers import _http_json, choose_search_provider, load_external_provider_env
 from evidentia.scanners.reddit import scan_reddit_live
@@ -213,7 +214,8 @@ def _to_signal(candidate: dict) -> DemandSignal | None:
     timestamp = _normalize_timestamp(candidate.get("timestamp"))
     title = str(candidate.get("title", "")).strip() or None
     subtype = _classify_subtype(f"{title or ''} {source_text}")
-    complaint_type, complaint_type_reason = _classify_complaint_type(subtype, f"{title or ''} {source_text}")
+    # Use the new public classify_complaint from classifier (TASK 02)
+    complaint_type, complaint_type_reason = classify_complaint(f"{title or ''} {source_text}")
     return DemandSignal(
         signal_id=DemandSignal.build_signal_id(source_url, quote),
         source_url=source_url,

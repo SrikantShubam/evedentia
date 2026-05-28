@@ -331,3 +331,45 @@ def classify_candidate(
     if last_issue is not None:
         message = f"{message}: {last_issue}"
     raise ClassifierError(message, last_raw_response=last_raw_response)
+
+
+# ---------------------------------------------------------------------------
+# TASK 02: Public complaint taxonomy classifier (added per spec, existing
+# _derive_complaint_type left intact per "DO NOT delete" rule)
+# ---------------------------------------------------------------------------
+
+def classify_complaint(text: str) -> tuple[str, str]:
+    """Classify complaint text into ComplaintType using keyword/pattern matching.
+
+    Returns (complaint_type_value, reason). Falls back to UNKNOWN_WITH_REASON.
+    """
+    if not text or not str(text).strip():
+        return "UNKNOWN_WITH_REASON", "empty input text"
+
+    t = " ".join(str(text).lower().split())
+
+    mapping = [
+        # Order matters: more specific / multi-word first
+        (("not for women", "no option for", "excluded from", "only for men"), "NICHE_EXCLUSION"),
+        (("too many ads", "ads everywhere", "sponsored content"), "ADS"),
+        (("billing", "charged twice", "refund", "overcharged", "payment failed"), "BILLING_ABUSE"),
+        (("privacy", "trust", "tracking my data", "data collection", "surveillance"), "TRUST_PRIVACY"),
+        (("workflow friction", "too slow", "manual process", "time consuming"), "WORKFLOW_FRICTION"),
+        (("bloated", "too many features", "feature bloat", "overwhelming ui"), "FEATURE_BLOAT"),
+        (("support never", "no response from support", "customer service ignored"), "SUPPORT_FAILURE"),
+        (("no support for", "language support", "non-english", "localization"), "LOCALIZATION"),
+        (("locked in", "can't export", "vendor lock", "can't leave"), "PLATFORM_LOCK_IN"),
+        (("wish it had", "should add", "missing feature", "needs", "lacks"), "MISSING_FEATURE"),
+        (("broken", "bug", "crashes", "doesn't work", "not working"), "BROKEN_FEATURE"),
+        (("too expensive", "paywall", "pricing", "overpriced", "subscription cost"), "PRICING"),
+        (("confusing", "hard to use", "clunky", "unintuitive", "bad ux", "bad ui"), "UX"),
+        (("looking for alternative", "switching", "replace this", "migrate from"), "SCOPE_MISMATCH"),
+        # Single word fallbacks (lower priority, only if very specific context)
+        (("ads", "advertising"), "ADS"),
+    ]
+
+    for tokens, label in mapping:
+        if any(token in t for token in tokens):
+            return label, ""
+
+    return "UNKNOWN_WITH_REASON", "No complaint taxonomy match from deterministic text patterns."
