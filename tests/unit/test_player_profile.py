@@ -40,6 +40,14 @@ def test_player_profile_rejects_invalid_risk():
         PlayerProfile(**payload)
 
 
+def test_player_profile_rejects_negative_budgets():
+    for field in ["budget_validate_usd", "budget_build_usd", "budget_reach_usd"]:
+        payload = _sample_profile_dict()
+        payload[field] = -1
+        with pytest.raises(ValueError, match="budgets must be non-negative"):
+            PlayerProfile(**payload)
+
+
 def test_idea_requires_evidence_ids():
     with pytest.raises(ValueError):
         Idea(

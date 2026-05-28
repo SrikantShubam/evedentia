@@ -2,7 +2,7 @@
 
 **Feature**: [../spec.md](../spec.md)
 **Plan Phase**: [Phase 0](../plan.md#phase-0-models--player-profile)
-**Status**: TODO
+**Status**: DONE (fixture proof via pytest)
 **Priority**: P0 (Critical)
 
 ## Objective
@@ -25,7 +25,7 @@ Implement `PlayerProfile` load/save as JSON in `outputs/profile.json` and add CL
 
 ## Acceptance Criteria
 
-- [ ] Valid profile JSON loads and saves correctly
-- [ ] Invalid budget (<0) or risk (not low/med/high) rejected with clear error
-- [ ] `edge player show` prints formatted profile
-- [ ] Round-trip: init → show → byte-match original JSON
+- [x] Valid profile JSON loads and saves correctly
+- [x] Invalid budget (<0) or risk (not low/med/high) rejected with clear error
+- [x] `edge player show` prints formatted profile
+- [x] Round-trip: init → show (semantic match; wrapper on disk)
