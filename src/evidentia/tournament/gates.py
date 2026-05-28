@@ -43,8 +43,10 @@ def evaluate_gate(gate_name: str, idea: Idea, player: PlayerProfile) -> GateEval
         passed = evidence_count >= 1
         return GateEvaluation(passed=passed, confidence=0.9 if passed else 0.55, evidence_ids=idea.evidence_ids[:1], rationale="evidence_presence")
     if gate_name == "three_first_person_voices":
-        passed = evidence_count >= 3
-        return GateEvaluation(passed=passed, confidence=0.92 if passed else 0.55, evidence_ids=idea.evidence_ids[:3], rationale="voice_count")
+        verified_ids = [eid for eid in idea.evidence_ids if idea.evidence_provenance.get(eid) == "verified"]
+        if len(verified_ids) >= 3:
+            return GateEvaluation(passed=True, confidence=0.92, evidence_ids=verified_ids[:3], rationale="voice_count")
+        return GateEvaluation(passed=False, confidence=0.55, evidence_ids=verified_ids, rationale="synthetic_only")
     if gate_name in {"reachable_channel", "pricing_anchor_exists"}:
         passed = len(idea.search_queries) >= 1
         return GateEvaluation(passed=passed, confidence=0.9 if passed else 0.55, evidence_ids=idea.evidence_ids[:1], rationale="query_presence")

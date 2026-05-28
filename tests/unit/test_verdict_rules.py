@@ -67,7 +67,7 @@ def test_rule_3_unfinished_required_gate_is_insufficient_evidence():
 
 def test_rule_4_all_pass_with_high_confidence_is_pursue_spike():
     results = _base_pass_results()
-    assert derive_terminal_verdict(_state(results, 0.45)) == TerminalVerdict.PURSUE_SPIKE
+    assert derive_terminal_verdict(_state(results, 0.9)) == TerminalVerdict.PURSUE_SPIKE
 
 
 def test_rule_5_all_pass_with_low_confidence_is_shortlist():
