@@ -1,17 +1,6 @@
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from hashlib import sha1
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, StringConstraints
-from typing import Annotated
-
-
-NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-
-
-class Verdict(str, Enum):
-    KILL = "KILL"
-    REFINE = "REFINE"
-    PURSUE = "PURSUE"
 
 
 class RoundOutcome(str, Enum):
@@ -32,6 +21,14 @@ class TerminalVerdict(str, Enum):
     PURSUE_SPIKE = "PURSUE_SPIKE"
 
 
+# Retired for backward compat (pre-Phase 0 Verdict + scoring transition).
+# New code uses TerminalVerdict; legacy paths may reference Verdict as nullable/optional.
+class Verdict(str, Enum):
+    KILL = "KILL"
+    REFINE = "REFINE"
+    PURSUE = "PURSUE"
+
+
 class ComplaintType(str, Enum):
     ADS = "ADS"
     BILLING_ABUSE = "BILLING_ABUSE"
@@ -48,11 +45,6 @@ class ComplaintType(str, Enum):
     UX = "UX"
     SCOPE_MISMATCH = "SCOPE_MISMATCH"
     UNKNOWN_WITH_REASON = "UNKNOWN_WITH_REASON"
-
-
-class SourceEvidence(BaseModel):
-    source_url: HttpUrl
-    verbatim_quote: NonEmptyStr
 
 
 @dataclass
@@ -173,6 +165,23 @@ class KillCondition:
         return asdict(self)
 
 
+class Provenance(Enum):
+    SYNTHETIC = "synthetic"
+    SEED = "seed"
+    REENTRY = "reentry"
+    VERIFIED = "verified"
+
+
+@dataclass
+class QualifiedEvidence:
+    evidence_id: str
+    provenance: Provenance
+    verified: bool
+    first_person: bool
+    voice_key: str | None
+    ineligibility_reason: str | None = None
+
+
 @dataclass
 class Idea:
     id: str
@@ -188,6 +197,7 @@ class Idea:
     gate_profile: str
     gate_profile_source: str
     parent_idea_id: str | None = None
+    evidence_provenance: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.id.strip():
@@ -251,7 +261,9 @@ class IdeaState:
             raise ValueError("IdeaState.confidence_score_so_far must be non-negative")
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        d["idea"] = self.idea.to_dict()
+        return d
 
 
 @dataclass
@@ -293,6 +305,7 @@ class DecisionMemo:
     missing_evidence_checklist: list[str]
     reality_spike: RealitySpike | None
     zero_winner_diagnosis: str | None
+    schema_version: int = 1
 
     def __post_init__(self) -> None:
         if not self.tournament_id.strip():
@@ -301,7 +314,12 @@ class DecisionMemo:
             raise ValueError("DecisionMemo.player_id must be non-empty")
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        d["winner"] = self.winner.to_dict() if self.winner else None
+        d["shortlist"] = [s.to_dict() for s in self.shortlist]
+        d["insufficient_evidence"] = [s.to_dict() for s in self.insufficient_evidence]
+        d["killed"] = [s.to_dict() for s in self.killed]
+        return d
 
 
 @dataclass
@@ -318,6 +336,7 @@ class TournamentResult:
     is_rankable: bool
     parent_tournament_id: str | None
     reentry_depth: int
+    schema_version: int = 1
 
     def __post_init__(self) -> None:
         if not self.tournament_id.strip():
@@ -332,33 +351,7 @@ class TournamentResult:
             raise ValueError("TournamentResult.reentry_depth must be non-negative")
 
     def to_dict(self) -> dict:
-        return asdict(self)
-
-
-class Opportunity(BaseModel):
-    opportunity_id: NonEmptyStr
-    title: NonEmptyStr
-    willingness_to_pay: NonEmptyStr
-    distribution_channel: NonEmptyStr
-    data_feasibility: NonEmptyStr
-
-
-class ProductSpec(BaseModel):
-    model_config = ConfigDict(strict=True)
-
-    opportunity_id: NonEmptyStr
-    title: NonEmptyStr
-    approved: bool
-    sources: Annotated[list[SourceEvidence], Field(min_length=1)]
-
-
-class DeploymentMetadata(BaseModel):
-    model_config = ConfigDict(strict=True)
-
-    status: NonEmptyStr
-    target: NonEmptyStr
-    project_id: NonEmptyStr
-    url: HttpUrl | None = None
-    deployment_id: NonEmptyStr | None = None
-    proof_level: NonEmptyStr
-    detail: NonEmptyStr | None = None
+        d = asdict(self)
+        d["ideas"] = [s.to_dict() for s in self.ideas]
+        d["memo"] = self.memo.to_dict() if self.memo else None
+        return d
