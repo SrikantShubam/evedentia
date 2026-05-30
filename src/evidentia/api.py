@@ -61,6 +61,22 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
 
     init_db(db_path)
 
+    # Seed default player (used by dashboard's hardcoded player_id: "default")
+    try:
+        default_player = PlayerProfile(
+            id="default",
+            team="default",
+            skills=["research"],
+            budget_validate_usd=500,
+            budget_build_usd=2000,
+            budget_reach_usd=300,
+            weeks_to_ship=8,
+            risk="low",
+        )
+        upsert_player_profile(default_player, db_path=db_path, now_utc=_utc_now())
+    except Exception:
+        pass  # already exists or race
+
     @app.post("/player")
     def post_player(payload: dict) -> dict:
         profile = PlayerProfile(**payload)
