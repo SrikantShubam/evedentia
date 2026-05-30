@@ -49,7 +49,7 @@ export function RealitySpikeCard({ realitySpike }: RealitySpikeCardProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div
           className="p-4 rounded-xl border col-span-2"
-          style={{ borderColor: T.border, background: T.glassBg }}
+          style={{ borderColor: T.glassBorder, background: T.glassBg, backdropFilter: "blur(16px)" }}
         >
           <div className="text-[10px] font-mono tracking-wider text-[#888] uppercase mb-1">
             Target Customer Profile
@@ -60,9 +60,10 @@ export function RealitySpikeCard({ realitySpike }: RealitySpikeCardProps) {
         <div
           className="p-4 rounded-xl border col-span-2"
           style={{
-            borderColor: T.border,
+            borderColor: T.glassBorder,
             background: T.glassBg,
             borderLeft: "3px solid rgba(245,158,11,0.4)",
+            backdropFilter: "blur(16px)",
           }}
         >
           <div className="text-[10px] font-mono tracking-wider text-[#888] uppercase mb-1">
@@ -73,14 +74,14 @@ export function RealitySpikeCard({ realitySpike }: RealitySpikeCardProps) {
           </div>
         </div>
 
-        <div className="p-4 rounded-xl border" style={{ borderColor: T.border, background: T.glassBg }}>
+        <div className="p-4 rounded-xl border" style={{ borderColor: T.glassBorder, background: T.glassBg, backdropFilter: "blur(16px)" }}>
           <div className="text-[10px] font-mono tracking-wider text-[#888] uppercase mb-1">
             Landing Page Headline
           </div>
           <div className="text-sm font-semibold text-white">{rs.landing_page_headline}</div>
         </div>
 
-        <div className="p-4 rounded-xl border" style={{ borderColor: T.border, background: T.glassBg }}>
+        <div className="p-4 rounded-xl border" style={{ borderColor: T.glassBorder, background: T.glassBg, backdropFilter: "blur(16px)" }}>
           <div className="text-[10px] font-mono tracking-wider text-[#888] uppercase mb-1">
             Subhead
           </div>
@@ -89,7 +90,7 @@ export function RealitySpikeCard({ realitySpike }: RealitySpikeCardProps) {
 
         <div
           className="p-4 rounded-xl border col-span-2"
-          style={{ borderColor: T.border, background: T.glassBg }}
+          style={{ borderColor: T.glassBorder, background: T.glassBg, backdropFilter: "blur(16px)" }}
         >
           <div className="text-[10px] font-mono tracking-wider text-[#888] uppercase mb-2">
             Interview Questions
@@ -104,14 +105,14 @@ export function RealitySpikeCard({ realitySpike }: RealitySpikeCardProps) {
           </ol>
         </div>
 
-        <div className="p-4 rounded-xl border" style={{ borderColor: T.border, background: T.glassBg }}>
+        <div className="p-4 rounded-xl border" style={{ borderColor: T.glassBorder, background: T.glassBg, backdropFilter: "blur(16px)" }}>
           <div className="text-[10px] font-mono tracking-wider text-[#888] uppercase mb-1">
             Success Criteria
           </div>
           <div className="text-sm text-[#22c55e]">{rs.success_criteria}</div>
         </div>
 
-        <div className="p-4 rounded-xl border" style={{ borderColor: T.border, background: T.glassBg }}>
+        <div className="p-4 rounded-xl border" style={{ borderColor: T.glassBorder, background: T.glassBg, backdropFilter: "blur(16px)" }}>
           <div className="text-[10px] font-mono tracking-wider text-[#888] uppercase mb-1">
             Fail Criteria
           </div>
