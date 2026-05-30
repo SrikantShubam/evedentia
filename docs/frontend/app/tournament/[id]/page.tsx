@@ -56,10 +56,11 @@ export default function TournamentBoardPage() {
         const data = await res.json();
         setPayload(data);
 
-        // Seed ideas from payload if present
+        // Seed ideas from payload if present (IdeaState now has flat id/label at top level)
         if (data.ideas) {
           const map: Record<string, Idea> = {};
           data.ideas.forEach((i: any) => {
+            // now works directly with .id (flattened in IdeaState.to_dict)
             map[i.id] = { ...i, status: "PENDING" };
           });
           setIdeasMap(map);
@@ -200,7 +201,7 @@ export default function TournamentBoardPage() {
   const terminalVerdicts = useMemo(() => {
     const map: Record<string, string> = {};
     apiIdeas.forEach((i: any) => {
-      const id = i?.idea?.id || i?.id;
+      const id = i?.id;
       if (id) map[id] = i?.terminal_verdict;
     });
     return map;
@@ -280,17 +281,18 @@ export default function TournamentBoardPage() {
             <div className="font-mono text-xs tracking-[1px] text-[#e2ff5d] mb-3 px-1">FINAL SNAPSHOT</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
               {apiIdeas.map((raw: any) => {
-                const ideaId = raw?.idea?.id ?? raw?.id;
-                const ideaLabel = raw?.idea?.label ?? raw?.label ?? ideaId;
+                // Final Snapshot: direct flat id/label (IdeaState.to_dict now promotes them)
+                const ideaId = raw.id;
+                const ideaLabel = raw.label ?? ideaId;
                 const tVerdict = terminalVerdicts[ideaId] ?? raw?.terminal_verdict;
 
                 const cardIdea = {
-                  id: ideaId,
-                  label: ideaLabel,
-                  confidence: raw?.confidence ?? raw?.idea?.confidence ?? 0,
-                  kill_risk: raw?.kill_risk ?? raw?.idea?.kill_risk,
-                  quote: raw?.quote ?? raw?.idea?.quote,
-                  cost_usd: raw?.cost_usd ?? raw?.idea?.cost_usd,
+                  id: raw.id,
+                  label: raw.label,
+                  confidence: raw.confidence_score_so_far ?? 0,
+                  kill_risk: raw.kill_risk,
+                  quote: raw.quote,
+                  cost_usd: raw.cost_usd,
                   status: (tVerdict === "PURSUE_SPIKE" ? "PASS" : tVerdict === "KILL" ? "FAIL" : tVerdict === "INSUFFICIENT_EVIDENCE" ? "SKIPPED" : "PENDING") as any,
                 };
 

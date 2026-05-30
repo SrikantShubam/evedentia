@@ -263,6 +263,8 @@ class IdeaState:
     def to_dict(self) -> dict:
         d = asdict(self)
         d["idea"] = self.idea.to_dict()
+        d["id"] = d["idea"]["id"]
+        d["label"] = d["idea"]["label"]
         return d
 
 
