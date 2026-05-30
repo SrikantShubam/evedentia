@@ -14,6 +14,11 @@ const T = {
   text: "#f0f0f0",
   muted: "#666666",
   mutedLight: "#888888",
+  danger: "#f87171",
+  glassBg: "rgba(255,255,255,0.03)",
+  glassBorder: "rgba(255,255,255,0.08)",
+  glassAccentBg: "rgba(226,255,93,0.06)",
+  glassAccentBorder: "rgba(226,255,93,0.15)",
 };
 
 // --- Data --------------------------------------------------------------
@@ -1493,57 +1498,48 @@ function TryItSection() {
   const [sources, setSources] = useState({ hn: true, reddit: true, github: true });
   const [maxResults, setMaxResults] = useState(3);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [specLoading, setSpecLoading] = useState<string | null>(null);
-  const [specs, setSpecs] = useState<Record<string, SpecResult>>({});
+  const [generatedIdeas, setGeneratedIdeas] = useState<any[]>([]);
+  const [hasRun, setHasRun] = useState(false);
 
   const selectedSources = Object.entries(sources).filter(([, v]) => v).map(([k]) => k);
   const normalizedDomain = domain.trim();
   const projectName = normalizedDomain ? `Evidentia + ${normalizedDomain}` : "Evidentia + Domain";
 
   const runScan = async () => {
-    if (!domain.trim() || selectedSources.length === 0) return;
+    if (!domain.trim()) return;
     setLoading(true);
     setError(null);
-    setResult(null);
-    setSpecs({});
+    setGeneratedIdeas([]);
+    setHasRun(true);
     try {
-      const res = await fetch(`${API_URL}/scan`, {
+      // Step 1: Harvest signals using the keyword as anchor_slug
+      const harvestRes = await fetch(`${API_URL}/harvest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain: domain.trim(), sources: selectedSources, max_results: maxResults }),
+        body: JSON.stringify({ anchor_slug: domain.trim(), limit: 20 }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail || res.statusText);
+      if (!harvestRes.ok) {
+        const err = await harvestRes.json().catch(() => ({ detail: harvestRes.statusText }));
+        throw new Error(err.detail || harvestRes.statusText);
       }
-      setResult(await res.json());
+
+      // Step 2: Generate ideas from the anchor
+      const genRes = await fetch(`${API_URL}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ anchor_slug: domain.trim(), count: 6 }),
+      });
+      if (!genRes.ok) {
+        const err = await genRes.json().catch(() => ({ detail: genRes.statusText }));
+        throw new Error(err.detail || genRes.statusText);
+      }
+      const genData = await genRes.json();
+      setGeneratedIdeas(genData.ideas || []);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const generateSpec = async (opp: Opportunity) => {
-    setSpecLoading(opp.opportunity_id);
-    try {
-      const res = await fetch(`${API_URL}/spec`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ opportunity: opp }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail || res.statusText);
-      }
-      const spec: SpecResult = await res.json();
-      setSpecs((prev) => ({ ...prev, [opp.opportunity_id]: spec }));
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Spec generation failed");
-    } finally {
-      setSpecLoading(null);
     }
   };
 
@@ -1650,9 +1646,9 @@ function TryItSection() {
                     transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                     style={{ display: "block", width: "12px", height: "12px", border: `2px solid ${T.muted}`, borderTopColor: T.text, borderRadius: "50%" }}
                   />
-                  scanning
+                  harvesting...
                 </span>
-              ) : "scan ->"}
+              ) : "harvest → generate"}
             </button>
           </div>
         </div>
@@ -1731,117 +1727,163 @@ function TryItSection() {
             marginBottom: "20px",
           }}
         >
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "#f87171" }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: T.danger }}>
             error: {error}
           </span>
         </motion.div>
       )}
 
-      {/* Results */}
-      {result && (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-          {/* Source attempt badges */}
-          {result.source_attempts?.length > 0 && (
-            <div style={{ display: "flex", gap: "6px", marginBottom: "20px", flexWrap: "wrap" as const }}>
-              {result.source_attempts.map((a) => (
-                <span
-                  key={a.source}
-                  title={sourceShortcutTitle(a.source)}
-                  aria-label={sourceShortcutTitle(a.source)}
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "11px",
-                    padding: "3px 10px",
-                    borderRadius: "4px",
-                    border: `1px solid ${a.status === "ok" ? "rgba(74,222,128,0.3)" : "rgba(248,113,113,0.3)"}`,
-                    color: a.status === "ok" ? "#4ade80" : "#f87171",
-                    background: a.status === "ok" ? "rgba(74,222,128,0.06)" : "rgba(248,113,113,0.06)",
-                  }}
-                >
-                  {a.source}: {a.status === "ok" ? `${a.count} hits` : a.status}
-                </span>
-              ))}
-            </div>
-          )}
+      {/* Loading state */}
+      {loading && (
+        <div
+          style={{
+            padding: "16px 20px",
+            borderRadius: "10px",
+            background: T.glassBg,
+            border: `1px solid ${T.glassBorder}`,
+            backdropFilter: "blur(12px)",
+            marginBottom: "16px",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+          }}
+        >
+          <motion.span
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            style={{ display: "block", width: "14px", height: "14px", border: `2px solid ${T.muted}`, borderTopColor: T.accent, borderRadius: "50%" }}
+          />
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: T.muted }}>
+            harvesting signals → generating ideas...
+          </span>
+        </div>
+      )}
 
-          {/* Synthesized hypotheses */}
-          {result.opportunities.length === 0 ? (
-            <div style={{ textAlign: "center" as const, padding: "48px 0", color: T.muted, fontFamily: "var(--font-mono)", fontSize: "13px" }}>
-              no synthesized hypotheses returned -- all candidates were KEEP/REVISE/KILL or discarded
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "24px" }}>
-              {result.opportunities.map((opp) => (
-                <div key={opp.opportunity_id}>
-                  <OpportunityCard
-                    opp={opp}
-                    onSpec={generateSpec}
-                  />
-                  {specLoading === opp.opportunity_id && (
-                    <div style={{ padding: "12px 0", fontFamily: "var(--font-mono)", fontSize: "12px", color: T.muted }}>
-                      generating spec...
-                    </div>
-                  )}
-                  {specs[opp.opportunity_id] && (
-                    <SpecPanel
-                      spec={specs[opp.opportunity_id]}
-                      onClose={() => setSpecs((prev) => {
-                        const next = { ...prev };
-                        delete next[opp.opportunity_id];
-                        return next;
-                      })}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Discard log */}
-          {result.discard_log?.length > 0 && (
-            <details style={{ marginTop: "8px" }}>
-              <summary
+      {/* Generated Ideas - glassmorphism bento cards */}
+      {!loading && generatedIdeas.length > 0 && (
+        <div style={{ marginTop: "8px", marginBottom: "24px" }}>
+          <div
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: "11px",
+              color: T.accent,
+              marginBottom: "12px",
+              letterSpacing: "0.06em",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            GENERATED IDEAS ({generatedIdeas.length})
+            <div style={{ flex: 1, height: "1px", background: T.glassBorder }} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px" }}>
+            {generatedIdeas.map((idea, idx) => (
+              <div
+                key={idea.id || idx}
                 style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "12px",
-                  color: T.muted,
-                  cursor: "pointer",
-                  padding: "8px 0",
-                  listStyle: "none",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
+                  background: T.glassBg,
+                  border: `1px solid ${T.glassBorder}`,
+                  borderRadius: "12px",
+                  backdropFilter: "blur(16px)",
+                  padding: "16px",
+                  transition: "transform 0.2s ease, border-color 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "scale(1.01)";
+                  e.currentTarget.style.borderColor = T.glassAccentBorder;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "scale(1)";
+                  e.currentTarget.style.borderColor = T.glassBorder;
                 }}
               >
-                <span style={{ color: T.border }}>{">"}</span>
-                {result.discard_log.length} discarded
-              </summary>
-              <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "4px" }}>
-                {result.discard_log.map((d, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: "6px",
-                      border: `1px solid ${T.border}`,
-                      background: T.surface,
-                    }}
-                  >
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: "#f87171", display: "block", marginBottom: "4px" }}>
-                      {d.reason}
-                    </span>
-                    <p style={{ fontSize: "12px", color: T.muted, fontStyle: "italic" }}>
-                      &ldquo;{d.verbatim_quote}&rdquo;
-                    </p>
-                    <a href={d.source_url} target="_blank" rel="noopener noreferrer" style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: T.muted, textDecoration: "none", wordBreak: "break-all" as const }}>
-                      {d.source_url}
-                    </a>
+                <div style={{ fontSize: "15px", fontWeight: 600, marginBottom: "6px", color: T.text, letterSpacing: "-0.01em" }}>
+                  {idea.label}
+                </div>
+                {idea.cohort && (
+                  <div style={{ fontSize: "12px", color: T.muted, marginBottom: "10px", fontFamily: "var(--font-mono)" }}>
+                    {idea.cohort}
                   </div>
-                ))}
+                )}
+                {idea.pain_hypothesis && (
+                  <div style={{ fontSize: "13px", color: T.mutedLight, lineHeight: 1.45, marginBottom: "14px" }}>
+                    {idea.pain_hypothesis}
+                  </div>
+                )}
+                {idea.kill_condition && (
+                  <div style={{ fontSize: "11px", color: T.danger, marginBottom: "12px" }}>
+                    KILL IF: {idea.kill_condition.description || JSON.stringify(idea.kill_condition)}
+                  </div>
+                )}
+                {idea.search_queries && idea.search_queries.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap" as const, gap: "4px", marginBottom: "14px" }}>
+                    {idea.search_queries.slice(0, 3).map((q: string, i: number) => (
+                      <span
+                        key={i}
+                        style={{
+                          fontSize: "10px",
+                          fontFamily: "var(--font-mono)",
+                          background: T.accentDim,
+                          color: T.accent,
+                          padding: "2px 6px",
+                          borderRadius: "3px",
+                        }}
+                      >
+                        {q}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    try {
+                      const payload = encodeURIComponent(JSON.stringify(idea));
+                      window.location.href = `/tournament/new?prefill=${payload}`;
+                    } catch {
+                      window.location.href = "/tournament/new";
+                    }
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "9px 12px",
+                    background: T.glassAccentBg,
+                    color: T.accent,
+                    fontWeight: 600,
+                    fontSize: "13px",
+                    fontFamily: "var(--font-mono)",
+                    border: `1px solid ${T.glassAccentBorder}`,
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    letterSpacing: "0.02em",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  Run Tournament →
+                </button>
               </div>
-            </details>
-          )}
-        </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {hasRun && !loading && generatedIdeas.length === 0 && !error && (
+        <div
+          style={{
+            padding: "20px 24px",
+            borderRadius: "10px",
+            background: T.glassBg,
+            border: `1px solid ${T.glassBorder}`,
+            backdropFilter: "blur(12px)",
+            textAlign: "center" as const,
+            marginBottom: "16px",
+          }}
+        >
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: T.muted }}>
+            enter a keyword above and hit harvest to generate ideas from real signals
+          </span>
+        </div>
       )}
     </section>
   );

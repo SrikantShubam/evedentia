@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
@@ -49,6 +50,15 @@ class TournamentRequest(BaseModel):
 
 def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     app = FastAPI(title="Evidentia API", version="0.1.0")
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://192.168.1.4:3000"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     init_db(db_path)
 
     @app.post("/player")

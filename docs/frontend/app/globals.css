@@ -44,3 +44,31 @@ select {
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* Shimmer animation for SKIPPED IdeaCards (glass refraction) */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.18) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.4s infinite linear;
+  pointer-events: none;
+}
