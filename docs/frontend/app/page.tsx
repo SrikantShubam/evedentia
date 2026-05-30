@@ -10,11 +10,21 @@ const API = process.env.NEXT_PUBLIC_EVIDENTIA_API ?? "http://127.0.0.1:8000";
 
 // --- Types -------------------------------------------------------------
 interface Idea {
-  id?: string;
-  label: string;
+  opportunity_id?: string;
+  title?: string;
+  label?: string;
   cohort?: string;
   pain_hypothesis?: string;
-  kill_condition?: { description?: string } | string;
+  hypothesis?: {
+    headline?: string;
+    wedge_statement?: string;
+    hypothesis_type?: string;
+  };
+  verdict?: string;
+  final_score?: number;
+  score?: number;
+  gate_failures?: string[];
+  verified_signals?: Array<{ source_url?: string; verbatim_quote?: string }>;
   [key: string]: unknown;
 }
 
@@ -67,32 +77,25 @@ export default function DashboardHomepage() {
     setHasScanned(true);
 
     try {
-      // Harvest
-      const hRes = await fetch(`${API}/harvest`, {
+      const scanRes = await fetch(`${API}/scan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ anchor_slug: q, limit: 20 }),
+        body: JSON.stringify({
+          keyword: q,
+          sources: activeSources,
+          max_results: 5,
+        }),
       });
-      if (!hRes.ok) {
-        const err = await hRes.json().catch(() => ({ detail: hRes.statusText }));
-        throw new Error(err.detail || hRes.statusText || "Harvest failed");
+      if (!scanRes.ok) {
+        const errText = await scanRes.text().catch(() => "scan failed");
+        throw new Error(`Scan: ${errText}`);
       }
-      setScanError("Harvested signals, generating ideas...");
-
-      // Generate
-      const genRes = await fetch(`${API}/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ anchor_slug: q, count: 10 }),
-      });
-      if (!genRes.ok) {
-        const err = await genRes.json().catch(() => ({ detail: genRes.statusText }));
-        throw new Error(err.detail || genRes.statusText);
+      const data = await scanRes.json();
+      const opps = (data.opportunities || []) as Array<Record<string, unknown>>;
+      if (opps.length === 0 && data.discard_log?.length > 0) {
+        setScanError(`Scan complete but all ${data.discard_log.length} signals were discarded. Try a different keyword.`);
       }
-      setScanError(null);
-      const data = await genRes.json();
-      const list = (data.ideas || []) as Idea[];
-      setIdeas(list);
+      setIdeas(opps as Idea[]);
     } catch (e: unknown) {
       setScanError(e instanceof Error ? e.message : "Scan failed");
     } finally {
@@ -100,9 +103,25 @@ export default function DashboardHomepage() {
     }
   };
 
-  const handleRunTournament = async (idea: Idea) => {
+  const handleRunTournament = async (opp: Idea) => {
     const tournamentId = crypto.randomUUID();
-
+    const ideaForTourney = {
+      id: opp.opportunity_id || `opp-${Date.now()}`,
+      label: opp.label || opp.title || opp.hypothesis?.headline || "Untitled",
+      anchor_slug: keyword.trim().toLowerCase().replace(/\s+/g, "-"),
+      incumbent: "unknown",
+      cohort: opp.cohort || opp.hypothesis?.hypothesis_type || "unknown",
+      pain_hypothesis: opp.pain_hypothesis || opp.hypothesis?.wedge_statement || "No hypothesis recorded",
+      kill_condition: {
+        description: `Scan verdict: ${opp.verdict || "unknown"}. Score: ${opp.final_score ?? opp.score ?? 0}`,
+        gate_name: opp.gate_failures?.[0] || "scan_gate",
+      },
+      evidence_ids: (opp.verified_signals || []).map((_: unknown, i: number) => `sig-${i + 1}`),
+      search_queries: [keyword.trim()],
+      origin: "scan",
+      gate_profile: "consumer_app",
+      gate_profile_source: "inferred:scan",
+    };
     try {
       const res = await fetch(`${API}/tournament`, {
         method: "POST",
@@ -110,7 +129,7 @@ export default function DashboardHomepage() {
         body: JSON.stringify({
           tournament_id: tournamentId,
           player_id: "default",
-          ideas: [idea],
+          ideas: [ideaForTourney],
           gate_profile: "balanced",
         }),
       });
@@ -464,10 +483,20 @@ export default function DashboardHomepage() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "12px" }}>
                 {ideas.length > 0 ? (
                   ideas.map((idea, idx) => {
-                    const kill = typeof idea.kill_condition === "string" ? idea.kill_condition : idea.kill_condition?.description || "";
+                    const label = idea.label || idea.title || idea.hypothesis?.headline || "Untitled opportunity";
+                    const pain = idea.pain_hypothesis || idea.hypothesis?.wedge_statement || "";
+                    const cohort = idea.cohort || idea.hypothesis?.hypothesis_type || "";
+                    const score = typeof idea.final_score === "number" ? idea.final_score : (typeof idea.score === "number" ? idea.score : 0);
+                    const verdictRaw = (idea.verdict || "REFINE").toString().toUpperCase();
+                    const verdict = (verdictRaw === "PURSUE" || verdictRaw === "KILL" || verdictRaw === "REFINE") ? verdictRaw : "REFINE";
+                    const gateFailures: string[] = Array.isArray(idea.gate_failures) ? idea.gate_failures : [];
+                    const signalsCount = Array.isArray(idea.verified_signals) ? idea.verified_signals.length : 0;
+                    const vColor = verdict === "PURSUE" ? T.success : (verdict === "KILL" ? T.danger : T.warning);
+                    const vBg = verdict === "PURSUE" ? "rgba(34,197,94,0.1)" : (verdict === "KILL" ? "rgba(239,68,68,0.1)" : "rgba(245,158,11,0.1)");
+                    const vBorder = verdict === "PURSUE" ? "rgba(34,197,94,0.25)" : (verdict === "KILL" ? "rgba(239,68,68,0.25)" : "rgba(245,158,11,0.25)");
                     return (
                       <motion.div
-                        key={idea.id || idx}
+                        key={`${idea.opportunity_id || idea.id || idx}`}
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: Math.min(idx * 0.03, 0.3) }}
@@ -482,27 +511,41 @@ export default function DashboardHomepage() {
                           gap: "10px",
                         }}
                       >
-                        <div style={{ fontSize: "15px", fontWeight: 600, color: T.text, lineHeight: 1.3 }}>{idea.label}</div>
-                        {idea.cohort && <div style={{ fontSize: "12px", color: T.muted, fontFamily: "var(--font-mono)" }}>{idea.cohort}</div>}
-                        {idea.pain_hypothesis && (
-                          <div style={{ fontSize: "13px", color: T.mutedLight, lineHeight: 1.45 }}>{idea.pain_hypothesis}</div>
+                        <div style={{ fontSize: "15px", fontWeight: 600, color: T.text, lineHeight: 1.3 }}>{label}</div>
+                        {cohort && <div style={{ fontSize: "12px", color: T.muted, fontFamily: "var(--font-mono)" }}>{cohort}</div>}
+                        {pain && (
+                          <div style={{ fontSize: "13px", color: T.mutedLight, lineHeight: 1.45 }}>{pain}</div>
                         )}
-                        {kill && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" as const, marginTop: "2px" }}>
                           <div
                             style={{
-                              alignSelf: "flex-start",
                               fontSize: "11px",
-                              padding: "3px 9px",
+                              padding: "3px 8px",
                               borderRadius: "6px",
-                              background: "rgba(245,158,11,0.1)",
-                              border: "1px solid rgba(245,158,11,0.25)",
-                              color: T.warning,
+                              background: vBg,
+                              border: `1px solid ${vBorder}`,
+                              color: vColor,
                               fontFamily: "var(--font-mono)",
+                              fontWeight: 600,
                             }}
                           >
-                            KILL IF: {kill}
+                            {verdict} {Math.round(score * 100)}%
                           </div>
-                        )}
+                          {gateFailures.length > 0 && gateFailures.slice(0, 3).map((g, gi) => (
+                            <div key={gi} style={{
+                              fontSize: "10px",
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              background: "rgba(239,68,68,0.08)",
+                              border: "1px solid rgba(239,68,68,0.2)",
+                              color: T.danger,
+                              fontFamily: "var(--font-mono)",
+                            }}>{g}</div>
+                          ))}
+                          {signalsCount > 0 && (
+                            <div style={{ fontSize: "10px", color: T.mutedLight, fontFamily: "var(--font-mono)" }}>{signalsCount} signals</div>
+                          )}
+                        </div>
                         <div style={{ marginTop: "auto", paddingTop: "6px" }}>
                           <button
                             onClick={() => handleRunTournament(idea)}
