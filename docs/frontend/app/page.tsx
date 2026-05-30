@@ -68,11 +68,16 @@ export default function DashboardHomepage() {
 
     try {
       // Harvest
-      await fetch(`${API}/harvest`, {
+      const hRes = await fetch(`${API}/harvest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ anchor_slug: q, limit: 20 }),
-      }).catch(() => null);
+      });
+      if (!hRes.ok) {
+        const err = await hRes.json().catch(() => ({ detail: hRes.statusText }));
+        throw new Error(err.detail || hRes.statusText || "Harvest failed");
+      }
+      setScanError("Harvested signals, generating ideas...");
 
       // Generate
       const genRes = await fetch(`${API}/generate`, {
@@ -84,6 +89,7 @@ export default function DashboardHomepage() {
         const err = await genRes.json().catch(() => ({ detail: genRes.statusText }));
         throw new Error(err.detail || genRes.statusText);
       }
+      setScanError(null);
       const data = await genRes.json();
       const list = (data.ideas || []) as Idea[];
       setIdeas(list);
