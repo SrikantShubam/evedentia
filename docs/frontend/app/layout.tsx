@@ -19,7 +19,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className={`${roboto.className} ${roboto.variable}`}>
+      <body className={`${roboto.className} ${roboto.variable}`} suppressHydrationWarning>
         {children}
       </body>
     </html>

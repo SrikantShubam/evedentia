@@ -1,0 +1,144 @@
+{
+  "opportunities": [
+    {
+      "opportunity_id": "opp_001",
+      "title": "Show HN: Bitterbot \u2013 A local-first P2P agent mesh with skill trading",
+      "cluster_id": "hn:47766676",
+      "verified_signals": [
+        {
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=47766676",
+          "verbatim_quote": "We built this because we were tired of centralized agent frameworks that essentially act as expensive API wrappers.<p>The Tech:\nIt\u2019s a local-first mesh using libp2p. Instead of just passing text, agents trade \"skills\" over a p2p network. This means the mesh is sovereign...it doesn't rely on a central server to function or mediate agent communication.<p>This is where it gets exciting:<p>We have 300+ nodes live and just cleared a 10/10 security audit for the generated code. We\u2019re currently at 460 stars and 89 forks, but we\u2019ve reached a point where we need more eyes on the scaling logic. We want to know: how does this P2P mesh actually hold up when we push to 1,000+ nodes?<p>No cloud required. Everything stays on your hardware.<p>We\u2019re looking for deep technical feedback on the mesh stability and the skill-discovery protocol.<p>Victor Michael Gil (Founder and chief engineer) and I will be around all day to answer questions!",
+          "published_at": "2026-04-14T15:10:54Z"
+        }
+      ],
+      "willingness_to_pay": "fail",
+      "distribution_channel": "fail",
+      "data_feasibility": "fail",
+      "competition_gap": 0.8,
+      "buildability": 0.7,
+      "reachability_strength": 0.6,
+      "published_at": "2026-04-14T15:10:54Z",
+      "verdict": "HOLD",
+      "gate_verdict": "HOLD",
+      "gate_failures": [
+        "willingness_to_pay",
+        "distribution_channel",
+        "data_feasibility"
+      ],
+      "heuristic_score": 0.0,
+      "freshness_factor": 0.0,
+      "final_score": 0.0,
+      "score": 0.0
+    },
+    {
+      "opportunity_id": "opp_002",
+      "title": "Show HN: Is Hormuz open yet?",
+      "cluster_id": "hn:47696562",
+      "verified_signals": [
+        {
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=47696562",
+          "verbatim_quote": "I built this because I was interested in the data. Didn't fully get it to what I wanted, but thought I'd share it nonetheless. Maybe someone has better data sources they could share!<p>Turns out live ship tracking APIs are expensive so I manually just copied the json from <a href=\"https://www.marinetraffic.com/en/ais/home/centerx:57.4/centery:26.4/zoom:8\" rel=\"nofollow\">https://www.marinetraffic.com/en/ais/home/centerx:57.4/cente...</a> I'll probably have an ai agent do the same thing on some cron interval, if this gets any fanfare.<p>To actually know if the port is open without live ship tracking I found <a href=\"https://portwatch.imf.org/pages/cb5856222a5b4105adc6ee7e880a1730\" rel=\"nofollow\">https://portwatch.imf.org/pages/cb5856222a5b4105adc6ee7e880a...</a> which was perfect, except it has 4 day lag!<p>I also thought of adding news feed parsing or prediction market data to get a more definitive answer on if it's open right when you load it, but I spent a few hours and am gonna move on for now.",
+          "published_at": "2026-04-08T21:33:06Z"
+        }
+      ],
+      "willingness_to_pay": "fail",
+      "distribution_channel": "pass",
+      "data_feasibility": "pass",
+      "competition_gap": 0.3,
+      "buildability": 0.8,
+      "reachability_strength": 0.5,
+      "published_at": "2026-04-08T21:33:06Z",
+      "verdict": "HOLD",
+      "gate_verdict": "HOLD",
+      "gate_failures": [
+        "willingness_to_pay"
+      ],
+      "heuristic_score": 0.0,
+      "freshness_factor": 0.0,
+      "final_score": 0.0,
+      "score": 0.0
+    },
+    {
+      "opportunity_id": "opp_003",
+      "title": "Invoice OCR API for Logistics Expense Tracking Automation",
+      "cluster_id": "hn:47362152",
+      "verified_signals": [
+        {
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=47362152",
+          "verbatim_quote": "Logistics and transportation companies handle large volumes of invoices for fuel, freight, tolls, and vendor services. Manually recording these expenses can slow down financial tracking and increase the chances of data entry errors. An Invoice OCR API helps automate this process by extracting important information directly from invoice images or PDFs. Using OCR technology, the system can capture details such as invoice numbers, vendor names, dates, line items, and total amounts. This structured data allows businesses to monitor logistics expenses more efficiently, simplify reconciliation, and improve overall financial visibility across transportation operations.",
+          "published_at": "2026-03-13T09:14:35Z"
+        }
+      ],
+      "willingness_to_pay": "fail",
+      "distribution_channel": "fail",
+      "data_feasibility": "fail",
+      "competition_gap": 0.7,
+      "buildability": 0.8,
+      "reachability_strength": 0.4,
+      "published_at": "2026-03-13T09:14:35Z",
+      "verdict": "HOLD",
+      "gate_verdict": "HOLD",
+      "gate_failures": [
+        "willingness_to_pay",
+        "distribution_channel",
+        "data_feasibility"
+      ],
+      "heuristic_score": 0.0,
+      "freshness_factor": 0.0,
+      "final_score": 0.0,
+      "score": 0.0
+    },
+    {
+      "opportunity_id": "opp_004",
+      "title": "What if quantum mechanics is just how a simulation saves processing power?",
+      "cluster_id": "reddit:/r/WhatIfThinking/comments/1sma6v7/what_if_quantum_mechanics_is_just_how_a/",
+      "verified_signals": [
+        {
+          "source": "reddit",
+          "source_url": "https://www.reddit.com/r/WhatIfThinking/comments/1sma6v7/what_if_quantum_mechanics_is_just_how_a/",
+          "verbatim_quote": "I was thinking about this from a weird angle. Not trying to prove anything, just following the logic.\n\nAssume nothing changes about the universe we observe. Same physics, same limits. The only shift is that it runs on some finite \u201chardware\u201d.\n\nIf you had to simulate a universe but couldn\u2019t afford to compute everything in full detail, you would probably start with broad rules. Light spreads like a wave because it\u2019s cheaper than tracking every photon. Most of the time, that approximation works.\n\nBut then there\u2019s a problem. Observers zoom in. They look closer and closer. At some point the system has to produce something concrete. So maybe instead of always being definite, things stay probabilistic until observed. Only then does the system \u201cpick\u201d a state.\n\nNot because reality is inherently random, but because rendering everything all the time is too expensive.\n\nThat also makes me wonder about entanglement. From inside the system, it looks like instant coordination across distance. But if both particles are just linked variables in the same underlying layer, maybe nothing is actually \u201ctraveling\u201d between them. The update just happens when needed.\n\nEven the speed of light could be a limit inside the simulation, not outside it. A constraint on how information propagates within the system, not how fast the system itself runs.\n\nThen I tried mapping other things onto this idea. Gravity could be less about objects communicating with each other and more about how the \u201cgrid\u201d they sit on is shaped. Instead of every object calculating forces from every other object, the environment itself encodes the effect. Cheaper to run.\n\nBlack holes feel even stranger in this frame. We think of them as extreme physical objects, but they also look a bit like places where information disappears or gets compressed. Almost like a cleanup process. Not necessarily intentional, just\u2026 convenient.\n\nI\u2019m not saying this is true. It might just be my brain trying to replace \u201cunknown\u201d with something familiar like code and systems.\n\nBut if quantum behavior really is just the most efficient way to fake consistency under constraints, then what would count as evidence against that idea from inside the system?",
+          "published_at": "2026-04-15T15:57:28Z"
+        }
+      ],
+      "willingness_to_pay": "fail",
+      "distribution_channel": "fail",
+      "data_feasibility": "fail",
+      "competition_gap": 0.9,
+      "buildability": 0.2,
+      "reachability_strength": 0.1,
+      "published_at": "2026-04-15T15:57:28Z",
+      "verdict": "HOLD",
+      "gate_verdict": "HOLD",
+      "gate_failures": [
+        "willingness_to_pay",
+        "distribution_channel",
+        "data_feasibility"
+      ],
+      "heuristic_score": 0.0,
+      "freshness_factor": 0.0,
+      "final_score": 0.0,
+      "score": 0.0
+    }
+  ],
+  "discard_log": [],
+  "source_attempts": [
+    {
+      "source": "hn",
+      "status": "ok",
+      "count": 3
+    },
+    {
+      "source": "reddit",
+      "status": "ok",
+      "count": 1
+    },
+    {
+      "source": "github",
+      "status": "ok",
+      "count": 0
+    }
+  ]
+}
