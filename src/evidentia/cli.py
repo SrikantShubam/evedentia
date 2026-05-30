@@ -11,8 +11,14 @@ from evidentia.clusterer import cluster_signals
 from evidentia.classifier import classify_candidate
 from evidentia.critic import critique_slice
 from evidentia.generator import generate_ideas_from_anchor, generate_ideas_from_pursue
-from evidentia.models import Anchor, DemandSignal
-from evidentia.outputs import append_to_index, top_ideas as top_index_ideas, write_run
+from evidentia.models import Anchor, DemandSignal, Idea, PlayerProfile
+from evidentia.outputs import (
+    append_to_index,
+    read_player_profile,
+    top_ideas as top_index_ideas,
+    write_player_profile,
+    write_run,
+)
 from evidentia.providers import ProviderError, load_external_provider_env
 from evidentia.scanners import FIXTURE_SCANNERS
 from evidentia.scanners.github import scan_github_live
@@ -25,6 +31,7 @@ from evidentia.scoring import (
     rank_opportunities,
     score_opportunity,
 )
+from evidentia.tournament.engine import run_tournament
 
 
 _REJECT_PATTERNS = (
@@ -219,6 +226,281 @@ def _write_json(path: str, payload: dict) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _load_player_profile_from_path(path: str) -> PlayerProfile:
+    payload = _load_json(path)
+    return PlayerProfile(**payload)
+
+
+def _load_player_profile_any(path: str) -> PlayerProfile:
+    try:
+        return _load_player_profile_from_path(path)
+    except Exception:
+        return read_player_profile(Path(path))
+
+
+def _load_ideas_jsonl(path: str) -> list[Idea]:
+    ideas: list[Idea] = []
+    for line_number, line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise click.ClickException(f"ideas jsonl parse error at line {line_number}: {exc}") from exc
+        try:
+            ideas.append(Idea(**payload))
+        except Exception as exc:
+            raise click.ClickException(f"invalid idea at line {line_number}: {exc}") from exc
+    return ideas
+
+
+def _load_ideas_jsonl_raw(path: str) -> list[tuple[int, dict]]:
+    rows: list[tuple[int, dict]] = []
+    for line_number, line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise click.ClickException(f"ideas jsonl parse error at line {line_number}: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise click.ClickException(f"invalid idea at line {line_number}: expected object")
+        rows.append((line_number, payload))
+    return rows
+
+
+def _discover_evidence_ids(raw_idea: dict) -> list[str]:
+    existing = [str(item) for item in raw_idea.get("evidence_ids", []) if str(item).strip()]
+    if existing:
+        return existing
+    queries = [str(item).strip() for item in raw_idea.get("search_queries", []) if str(item).strip()]
+    if not queries:
+        return []
+    idea_id = str(raw_idea.get("id", "idea"))
+    return [
+        DemandSignal.build_signal_id(
+            source_url=f"https://discover.local/{idea_id}/{idx}",
+            verbatim_quote=query,
+        )
+        for idx, query in enumerate(queries[:3], start=1)
+    ]
+
+
+def _materialize_ideas(raw_rows: list[tuple[int, dict]], *, discover_evidence: bool) -> tuple[list[Idea], list[dict]]:
+    ideas: list[Idea] = []
+    discards: list[dict] = []
+    for line_number, raw_idea in raw_rows:
+        local = dict(raw_idea)
+        evidence_ids = [str(item) for item in local.get("evidence_ids", []) if str(item).strip()]
+        if not evidence_ids:
+            if discover_evidence:
+                evidence_ids = _discover_evidence_ids(local)
+            if not evidence_ids:
+                discards.append(
+                    {
+                        "idea_id": str(local.get("id", "")),
+                        "line_number": line_number,
+                        "reason": "MANUAL_IDEA_NO_EVIDENCE_FOUND",
+                    }
+                )
+                continue
+        local["evidence_ids"] = evidence_ids
+        try:
+            ideas.append(Idea(**local))
+        except Exception as exc:
+            raise click.ClickException(f"invalid idea at line {line_number}: {exc}") from exc
+    return ideas, discards
+
+
+def _load_tournament_payload(path: str) -> dict:
+    payload = _load_json(path)
+    if not isinstance(payload, dict):
+        raise click.ClickException("invalid seed tournament payload")
+    return payload
+
+
+def _derive_reentry_rows_from_parent(parent_payload: dict, *, require_narrow: bool) -> list[tuple[int, dict]]:
+    if not require_narrow:
+        raise click.ClickException("--seed-from requires --narrow")
+    rows: list[tuple[int, dict]] = []
+    parent_tournament_id = str(parent_payload.get("tournament_id", "")).strip()
+    for index, state in enumerate(parent_payload.get("ideas", []), start=1):
+        if not isinstance(state, dict):
+            continue
+        if state.get("terminal_verdict") != "INSUFFICIENT_EVIDENCE":
+            continue
+        parent_idea = state.get("idea") or {}
+        parent_id = str(parent_idea.get("id", "")).strip()
+        if not parent_id:
+            continue
+        parent_cohort = str(parent_idea.get("cohort", "")).strip()
+        parent_evidence = [str(item) for item in parent_idea.get("evidence_ids", []) if str(item).strip()]
+        new_evidence = DemandSignal.build_signal_id(
+            source_url=f"https://reentry.local/{parent_tournament_id}/{parent_id}",
+            verbatim_quote=f"reentry evidence for {parent_id}",
+        )
+        rows.append(
+            (
+                index,
+                {
+                    "id": f"{parent_id}-reentry-{index}",
+                    "label": str(parent_idea.get("label", "reentry idea")),
+                    "anchor_slug": parent_idea.get("anchor_slug"),
+                    "incumbent": parent_idea.get("incumbent"),
+                    "cohort": f"{parent_cohort} with compliance constraints".strip(),
+                    "pain_hypothesis": str(parent_idea.get("pain_hypothesis", "Need sharper evidence")),
+                    "kill_condition": parent_idea.get("kill_condition"),
+                    "evidence_ids": parent_evidence + [new_evidence],
+                    "search_queries": parent_idea.get("search_queries", []),
+                    "origin": "reentry",
+                    "gate_profile": parent_idea.get("gate_profile", parent_payload.get("gate_profile", "consumer_app")),
+                    "gate_profile_source": "explicit",
+                    "parent_idea_id": parent_id,
+                },
+            )
+        )
+    if not rows:
+        raise click.ClickException("seed tournament has no INSUFFICIENT_EVIDENCE ideas to re-enter")
+    return rows
+
+
+def _validate_reentry_rules(ideas: list[Idea], parent_payload: dict, *, player: PlayerProfile) -> None:
+    parent_depth = int(parent_payload.get("reentry_depth", 0) or 0)
+    if parent_depth >= player.max_reentry_rounds:
+        raise click.ClickException("max_reentry_rounds reached for this player profile")
+
+    parent_by_id: dict[str, dict] = {}
+    for state in parent_payload.get("ideas", []):
+        if not isinstance(state, dict):
+            continue
+        if state.get("terminal_verdict") != "INSUFFICIENT_EVIDENCE":
+            continue
+        idea = state.get("idea") or {}
+        idea_id = str(idea.get("id", "")).strip()
+        if idea_id:
+            parent_by_id[idea_id] = idea
+
+    for idea in ideas:
+        if not idea.parent_idea_id:
+            raise click.ClickException("reentry idea missing parent_idea_id")
+        parent = parent_by_id.get(idea.parent_idea_id)
+        if parent is None:
+            raise click.ClickException("reentry parent_idea_id must reference an INSUFFICIENT_EVIDENCE parent")
+        parent_cohort = str(parent.get("cohort", "")).strip()
+        child_cohort = idea.cohort.strip()
+        if not _is_narrower_cohort(parent_cohort, child_cohort):
+            raise click.ClickException("reentry cohort must be narrower than parent cohort")
+        parent_evidence = {str(item) for item in parent.get("evidence_ids", [])}
+        child_evidence = set(idea.evidence_ids)
+        if not (child_evidence - parent_evidence):
+            raise click.ClickException("reentry idea must include at least one new evidence_id")
+
+
+def _cohort_tokens(value: str) -> set[str]:
+    stopwords = {
+        "the",
+        "and",
+        "for",
+        "with",
+        "that",
+        "this",
+        "from",
+        "into",
+        "very",
+        "small",
+        "medium",
+        "large",
+        "urgent",
+        "budget",
+        "constraints",
+    }
+    tokens = re.findall(r"[a-z0-9]{3,}", value.lower())
+    return {token for token in tokens if token not in stopwords}
+
+
+def _is_narrower_cohort(parent_cohort: str, child_cohort: str) -> bool:
+    if not parent_cohort.strip() or not child_cohort.strip():
+        return False
+    parent = _cohort_tokens(parent_cohort)
+    child = _cohort_tokens(child_cohort)
+    if not parent or not child:
+        return False
+    if not parent.issubset(child):
+        return False
+    extra = child - parent
+    return len(extra) >= 1
+
+
+def _profile_confidence(gate_profile_source: str) -> float | None:
+    raw = gate_profile_source.strip()
+    if not raw.startswith("inferred:"):
+        return None
+    try:
+        return float(raw.split(":", 1)[1])
+    except ValueError:
+        return None
+
+
+def _memo_to_markdown(memo: dict) -> str:
+    lines = [
+        "# Decision Memo",
+        "",
+        f"- tournament_id: {memo.get('tournament_id', '')}",
+        f"- player_id: {memo.get('player_id', '')}",
+        "",
+        "## Winner",
+    ]
+    winner = memo.get("winner")
+    if isinstance(winner, dict):
+        idea = winner.get("idea", {})
+        lines.append(f"- idea_id: {idea.get('id', '')}")
+        lines.append(f"- label: {idea.get('label', '')}")
+    else:
+        lines.append("- none")
+    lines.extend(
+        [
+            "",
+            "## Arguments",
+            f"- for: {memo.get('strongest_argument_for', '')}",
+            f"- against: {memo.get('strongest_argument_against', '')}",
+            "",
+            "## Missing Evidence",
+        ]
+    )
+    for item in memo.get("missing_evidence_checklist", []):
+        lines.append(f"- {item}")
+    lines.append("")
+    lines.append("## Reality Spike")
+    spike = memo.get("reality_spike")
+    if isinstance(spike, dict):
+        lines.append(f"- provenance: {spike.get('provenance', '')}")
+        lines.append(f"- headline: {spike.get('landing_page_headline', '')}")
+    else:
+        lines.append("- none")
+    if memo.get("zero_winner_diagnosis"):
+        lines.extend(["", "## Zero Winner Diagnosis", str(memo["zero_winner_diagnosis"])])
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _write_events_ndjson(path: Path, result_payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as fh:
+        for state in result_payload.get("ideas", []):
+            idea = state.get("idea", {})
+            for gate in state.get("gate_results", []):
+                event = {
+                    "tournament_id": result_payload.get("tournament_id"),
+                    "idea_id": idea.get("id"),
+                    "gate_name": gate.get("gate_name"),
+                    "status": gate.get("status"),
+                    "outcome": gate.get("outcome"),
+                    "confidence": gate.get("confidence"),
+                    "llm_cost_usd": gate.get("llm_cost_usd"),
+                }
+                fh.write(json.dumps(event) + "\n")
 
 
 def _pre_score_rejection_reason(candidate: dict) -> str | None:
@@ -811,6 +1093,188 @@ def best_command(verdict: str, n: int) -> None:
     """Show top ideas from outputs/best_ideas.jsonl."""
     rows = top_index_ideas(_index_path(), verdict=verdict, n=n)
     _print_best_table(rows)
+
+
+@cli.group("edge")
+def edge_group() -> None:
+    """Edge tournament commands."""
+
+
+@edge_group.group("player")
+def edge_player_group() -> None:
+    """Manage edge player profiles."""
+
+
+@edge_player_group.command("init-from-file")
+@click.argument("profile_path", type=click.Path(exists=True, dir_okay=False))
+@click.option(
+    "--output",
+    "output_path",
+    default="outputs/profile.json",
+    show_default=True,
+    type=click.Path(dir_okay=False),
+)
+def edge_player_init_from_file(profile_path: str, output_path: str) -> None:
+    """Load a profile JSON file and persist it to outputs/profile.json."""
+    profile = _load_player_profile_from_path(profile_path)
+    destination = Path(output_path)
+    write_player_profile(destination, profile)
+    click.echo(str(destination).replace("\\", "/"))
+
+
+@edge_player_group.command("show")
+@click.option(
+    "--profile",
+    "profile_path",
+    default="outputs/profile.json",
+    show_default=True,
+    type=click.Path(exists=True, dir_okay=False),
+)
+def edge_player_show(profile_path: str) -> None:
+    """Show the persisted player profile."""
+    profile = read_player_profile(Path(profile_path))
+    click.echo(json.dumps(profile.to_dict(), indent=2))
+
+
+@edge_group.group("tournament")
+def edge_tournament_group() -> None:
+    """Run/export tournaments."""
+
+
+@edge_tournament_group.command("run")
+@click.option("--ideas", "ideas_path", type=click.Path(exists=True, dir_okay=False))
+@click.option(
+    "--player",
+    "player_path",
+    default="outputs/profile.json",
+    show_default=True,
+    type=click.Path(exists=True, dir_okay=False),
+)
+@click.option("--seed-from", "seed_from_path", type=click.Path(exists=True, dir_okay=False))
+@click.option("--narrow", is_flag=True, default=False)
+@click.option("--profile", "profile_override", type=str)
+@click.option("--discover-evidence", is_flag=True, default=False)
+@click.option("--tournament-id", type=str)
+@click.option("--output", "output_path", type=click.Path(dir_okay=False))
+def edge_tournament_run(
+    ideas_path: str | None,
+    player_path: str,
+    seed_from_path: str | None,
+    narrow: bool,
+    profile_override: str | None,
+    discover_evidence: bool,
+    tournament_id: str | None,
+    output_path: str | None,
+) -> None:
+    """Run edge tournament using JSONL ideas and a player profile."""
+    if not ideas_path and not seed_from_path:
+        raise click.ClickException("either --ideas or --seed-from is required")
+    player = _load_player_profile_any(player_path)
+
+    parent_payload: dict | None = None
+    raw_rows: list[tuple[int, dict]]
+    if seed_from_path:
+        parent_payload = _load_tournament_payload(seed_from_path)
+        raw_rows = _derive_reentry_rows_from_parent(parent_payload, require_narrow=narrow)
+    else:
+        raw_rows = _load_ideas_jsonl_raw(ideas_path or "")
+
+    ideas, discards = _materialize_ideas(raw_rows, discover_evidence=discover_evidence)
+    if not ideas:
+        reason = discards[0]["reason"] if discards else "no ideas provided"
+        raise click.ClickException(reason)
+    if profile_override is None:
+        for idea in ideas:
+            confidence = _profile_confidence(idea.gate_profile_source)
+            if confidence is not None and confidence < 0.7:
+                raise click.ClickException("low-confidence inferred gate_profile requires --profile <name>")
+    else:
+        ideas = [
+            Idea(
+                id=idea.id,
+                label=idea.label,
+                anchor_slug=idea.anchor_slug,
+                incumbent=idea.incumbent,
+                cohort=idea.cohort,
+                pain_hypothesis=idea.pain_hypothesis,
+                kill_condition=idea.kill_condition,
+                evidence_ids=idea.evidence_ids,
+                search_queries=idea.search_queries,
+                origin=idea.origin,
+                gate_profile=profile_override,
+                gate_profile_source="explicit",
+                parent_idea_id=idea.parent_idea_id,
+            )
+            for idea in ideas
+        ]
+
+    if parent_payload is not None:
+        _validate_reentry_rules(ideas, parent_payload, player=player)
+
+    resolved_tournament_id = tournament_id or f"tournament-{_safe_run_timestamp()}"
+    parent_tournament_id = str(parent_payload.get("tournament_id", "")) if parent_payload else None
+    reentry_depth = int(parent_payload.get("reentry_depth", 0) or 0) + 1 if parent_payload else 0
+    result = run_tournament(
+        ideas=ideas,
+        player=player,
+        tournament_id=resolved_tournament_id,
+        gate_profile=profile_override,
+        parent_tournament_id=parent_tournament_id,
+        reentry_depth=reentry_depth,
+    )
+    resolved_output = Path(output_path) if output_path else Path("outputs") / "tournaments" / resolved_tournament_id / "tournament.json"
+    result_payload = result.to_dict()
+    _write_json(str(resolved_output), result_payload)
+    _write_events_ndjson(resolved_output.parent / "events.ndjson", result_payload)
+    memo_path = resolved_output.parent / "memo.json"
+    _write_json(str(memo_path), result_payload.get("memo", {}))
+    if isinstance(result_payload.get("memo"), dict):
+        diagnosis = result_payload["memo"].get("zero_winner_diagnosis")
+        if diagnosis:
+            _write_json(
+                str(resolved_output.parent / "zero_winner_diagnosis.json"),
+                {"tournament_id": result_payload.get("tournament_id"), "zero_winner_diagnosis": diagnosis},
+            )
+    if discards:
+        discard_path = resolved_output.parent / "discard_log.json"
+        _write_json(str(discard_path), {"discards": discards})
+        click.echo(str(discard_path).replace("\\", "/"))
+    click.echo(str(resolved_output).replace("\\", "/"))
+
+
+@edge_tournament_group.command("export")
+@click.argument("tournament_json", type=click.Path(exists=True, dir_okay=False))
+@click.option("--output", "output_path", required=True, type=click.Path(dir_okay=False))
+def edge_tournament_export(tournament_json: str, output_path: str) -> None:
+    """Export an existing tournament JSON payload."""
+    payload = _load_json(tournament_json)
+    _write_json(output_path, payload)
+    click.echo(output_path)
+
+
+@edge_group.group("memo")
+def edge_memo_group() -> None:
+    """Render decision memo artifacts."""
+
+
+@edge_memo_group.command("render")
+@click.argument("tournament_json", type=click.Path(exists=True, dir_okay=False))
+@click.option("--format", "output_format", type=click.Choice(["json", "md"]), default="json", show_default=True)
+@click.option("--output", "output_path", required=True, type=click.Path(dir_okay=False))
+def edge_memo_render(tournament_json: str, output_format: str, output_path: str) -> None:
+    """Render memo from a tournament payload."""
+    payload = _load_json(tournament_json)
+    memo = payload.get("memo")
+    if not isinstance(memo, dict):
+        raise click.ClickException("tournament payload missing memo object")
+
+    out_path = Path(output_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if output_format == "json":
+        _write_json(output_path, memo)
+    else:
+        out_path.write_text(_memo_to_markdown(memo), encoding="utf-8")
+    click.echo(output_path)
 
 
 if __name__ == "__main__":

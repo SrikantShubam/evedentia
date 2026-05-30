@@ -15,3 +15,4 @@ def test_cli_help_renders():
     assert "generate" in result.output
     assert "loop" in result.output
     assert "best" in result.output
+    assert "edge" in result.output

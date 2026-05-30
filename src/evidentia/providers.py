@@ -48,11 +48,12 @@ def _parse_dotenv_file(path: Path) -> dict[str, str]:
 def load_external_provider_env() -> dict[str, str]:
     env = dict(os.environ)
     repo_root = _repo_root()
-    sibling_envs = [
+    dotenv_paths = [
+        repo_root / ".env",
         repo_root.parent / "codex" / ".env",
         repo_root.parent / "kimi" / ".env",
     ]
-    for dotenv_path in sibling_envs:
+    for dotenv_path in dotenv_paths:
         for key, value in _parse_dotenv_file(dotenv_path).items():
             env.setdefault(key, value)
     return env

@@ -107,6 +107,45 @@ def _normalize_classification(classification: dict) -> dict:
     }
 
 
+def _derive_complaint_type(candidate: dict) -> tuple[str, str | None]:
+    text = " ".join(str(candidate.get(key, "")).lower() for key in ("title", "verbatim_quote", "source_text"))
+    mapping = [
+        (("ad", "ads"), "ADS"),
+        (("billing", "charged", "refund"), "BILLING_ABUSE"),
+        (("not for women", "excluded", "cohort"), "NICHE_EXCLUSION"),
+        (("privacy", "trust", "tracking"), "TRUST_PRIVACY"),
+        (("friction", "slow", "manual"), "WORKFLOW_FRICTION"),
+        (("bloated", "too many features"), "FEATURE_BLOAT"),
+        (("support", "no response"), "SUPPORT_FAILURE"),
+        (("localization", "language", "region"), "LOCALIZATION"),
+        (("lock-in", "locked in", "export"), "PLATFORM_LOCK_IN"),
+        (("missing", "wish it had", "should add"), "MISSING_FEATURE"),
+        (("broken", "bug", "doesn't work"), "BROKEN_FEATURE"),
+        (("expensive", "pricing", "paywall"), "PRICING"),
+        (("confusing", "hard to use", "ux", "ui"), "UX"),
+        (("alternative", "switching", "replace"), "SCOPE_MISMATCH"),
+    ]
+    for tokens, label in mapping:
+        if any(token in text for token in tokens):
+            return label, None
+    return "UNKNOWN_WITH_REASON", "No complaint taxonomy match from deterministic text patterns."
+
+
+def _derive_additional_tasks(candidate: dict, normalized: dict) -> dict:
+    text = " ".join(str(candidate.get(key, "")).lower() for key in ("title", "verbatim_quote", "source_text"))
+    complaint_type, complaint_reason = _derive_complaint_type(candidate)
+    cohort_fit = "pass" if any(token in text for token in ("women", "teams", "developers", "agencies")) else "unknown"
+    spend_signal = any(token in text for token in ("pay", "budget", "price", "subscription"))
+    player_fit = "pass" if normalized["buildability"] >= 0.6 and normalized["reachability_strength"] >= 0.5 else "fail"
+    return {
+        "complaint_type": complaint_type,
+        "complaint_type_reason": complaint_reason,
+        "cohort_fit": cohort_fit,
+        "spend_signal": spend_signal,
+        "player_fit": player_fit,
+    }
+
+
 _TESTER_RECRUITMENT_PATTERNS = (
     re.compile(r"\bneed\s+\d+\s+testers?\b"),
     re.compile(r"\bneed\s+testers?\b"),
@@ -253,6 +292,7 @@ def classify_candidate(
 
             normalized = _normalize_classification(raw_response)
             normalized = _apply_deterministic_gate_overrides(candidate, normalized)
+            normalized.update(_derive_additional_tasks(candidate, normalized))
             _append_debug_log(
                 debug_log_path,
                 provider_name=provider_name,
@@ -291,3 +331,45 @@ def classify_candidate(
     if last_issue is not None:
         message = f"{message}: {last_issue}"
     raise ClassifierError(message, last_raw_response=last_raw_response)
+
+
+# ---------------------------------------------------------------------------
+# TASK 02: Public complaint taxonomy classifier (added per spec, existing
+# _derive_complaint_type left intact per "DO NOT delete" rule)
+# ---------------------------------------------------------------------------
+
+def classify_complaint(text: str) -> tuple[str, str]:
+    """Classify complaint text into ComplaintType using keyword/pattern matching.
+
+    Returns (complaint_type_value, reason). Falls back to UNKNOWN_WITH_REASON.
+    """
+    if not text or not str(text).strip():
+        return "UNKNOWN_WITH_REASON", "empty input text"
+
+    t = " ".join(str(text).lower().split())
+
+    mapping = [
+        # Order matters: more specific / multi-word first
+        (("not for women", "no option for", "excluded from", "only for men"), "NICHE_EXCLUSION"),
+        (("too many ads", "ads everywhere", "sponsored content"), "ADS"),
+        (("billing", "charged twice", "refund", "overcharged", "payment failed"), "BILLING_ABUSE"),
+        (("privacy", "trust", "tracking my data", "data collection", "surveillance"), "TRUST_PRIVACY"),
+        (("workflow friction", "too slow", "manual process", "time consuming"), "WORKFLOW_FRICTION"),
+        (("bloated", "too many features", "feature bloat", "overwhelming ui"), "FEATURE_BLOAT"),
+        (("support never", "no response from support", "customer service ignored"), "SUPPORT_FAILURE"),
+        (("no support for", "language support", "non-english", "localization"), "LOCALIZATION"),
+        (("locked in", "can't export", "vendor lock", "can't leave"), "PLATFORM_LOCK_IN"),
+        (("wish it had", "should add", "missing feature", "needs", "lacks"), "MISSING_FEATURE"),
+        (("broken", "bug", "crashes", "doesn't work", "not working"), "BROKEN_FEATURE"),
+        (("too expensive", "paywall", "pricing", "overpriced", "subscription cost"), "PRICING"),
+        (("confusing", "hard to use", "clunky", "unintuitive", "bad ux", "bad ui"), "UX"),
+        (("looking for alternative", "switching", "replace this", "migrate from"), "SCOPE_MISMATCH"),
+        # Single word fallbacks (lower priority, only if very specific context)
+        (("ads", "advertising"), "ADS"),
+    ]
+
+    for tokens, label in mapping:
+        if any(token in t for token in tokens):
+            return label, ""
+
+    return "UNKNOWN_WITH_REASON", "No complaint taxonomy match from deterministic text patterns."

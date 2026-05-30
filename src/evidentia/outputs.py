@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 import warnings
 
-from evidentia.models import Anchor, DemandSignal, Slice, SliceVerdict
+from evidentia.models import Anchor, DemandSignal, PlayerProfile, Slice, SliceVerdict
 
 
 SCHEMA_VERSION = 1
@@ -173,3 +173,15 @@ def top_ideas(index_path: Path, verdict: str = "PURSUE", n: int = 20) -> list[di
             latest_by_slice[slice_id] = row
     ordered = sorted(latest_by_slice.values(), key=_entry_sort_key, reverse=True)
     return ordered[:n]
+
+
+def write_player_profile(path: Path, profile: PlayerProfile) -> None:
+    _write_json(path, {"schema_version": SCHEMA_VERSION, "player_profile": profile.to_dict()})
+
+
+def read_player_profile(path: Path) -> PlayerProfile:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    data = payload.get("player_profile") if isinstance(payload, dict) else None
+    if not isinstance(data, dict):
+        raise ValueError("invalid profile payload: missing player_profile object")
+    return PlayerProfile(**data)
