@@ -43,9 +43,9 @@ export function IdeaCard({
   const status = (idea.status || "PENDING") as "PENDING" | "PASS" | "FAIL" | "SKIPPED" | "HOLD";
 
   const leftBorder =
-    status === "PASS" ? "#4ade80" :
-    status === "FAIL" ? "#f87171" :
-    status === "SKIPPED" ? "#fbbf24" : "#4b5563";
+    status === "PASS" ? T.success :
+    status === "FAIL" ? T.danger :
+    status === "SKIPPED" ? T.warning : T.muted;
 
   const glassStyle = {
     background: T.glassBg,
@@ -53,7 +53,7 @@ export function IdeaCard({
     backdropFilter: "blur(16px)",
     borderRadius: "8px",
     borderLeft: `3px solid ${leftBorder}`,
-    width: "200px",
+
   };
 
   // Status-driven animation / opacity (inline style objects per task)
@@ -99,7 +99,7 @@ export function IdeaCard({
             style={{ width: `${Math.round(confidence * 100)}%`, background: T.accent }}
           />
         </div>
-        <span className="font-mono text-[10px] text-[#e2ff5d] tabular-nums">{Math.round(confidence * 100)}%</span>
+          <span className="font-mono text-[10px] tabular-nums" style={{ color: T.accent }}>{Math.round(confidence * 100)}%</span>
       </div>
 
       {/* Top kill risk */}
@@ -122,7 +122,7 @@ export function IdeaCard({
       <div className="mt-2 pt-2 border-t border-white/10">
         <a
           href={`/ideas/${idea.id}`}
-          className="text-[10px] text-[#e2ff5d] hover:underline font-mono tracking-wider"
+          className="text-[10px] hover:underline font-mono tracking-wider" style={{ color: T.accent }}
           onClick={(e) => {
             if (onTrail) {
               e.preventDefault();

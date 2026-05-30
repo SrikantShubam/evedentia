@@ -164,7 +164,7 @@ function NewTournamentContent() {
           {/* Left Column - Main Controls */}
           <div className="lg:col-span-7 space-y-6">
             {/* Player & Profile */}
-            <div className="rounded-2xl border p-6" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(16px)" }}>
+            <div className="rounded-2xl border p-6" style={{ background: T.glassBg, border: `1px solid ${T.glassBorder}`, backdropFilter: "blur(16px)" }}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-mono uppercase tracking-widest text-[#888] mb-2">
@@ -218,7 +218,7 @@ function NewTournamentContent() {
             </div>
 
             {/* Harvest Preview */}
-            <div className="rounded-2xl border p-6" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(16px)" }}>
+            <div className="rounded-2xl border p-6" style={{ background: T.glassBg, border: `1px solid ${T.glassBorder}`, backdropFilter: "blur(16px)" }}>
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <div className="text-xs font-mono uppercase tracking-[1px] text-[#888]">HARVEST PREVIEW</div>
@@ -236,7 +236,7 @@ function NewTournamentContent() {
                   onClick={previewHarvest}
                   disabled={isHarvesting}
                   className="flex-1 py-3 rounded-xl text-sm font-medium transition-all active:scale-[0.985] disabled:opacity-60"
-                  style={{ background: T.accent, color: "#111" }}
+                  style={{ background: T.accent, color: "#000" }}
                 >
                   {isHarvesting ? "Harvesting..." : "Preview Harvest"}
                 </button>
@@ -280,7 +280,7 @@ function NewTournamentContent() {
 
           {/* Right Sidebar */}
           <div className="lg:col-span-5 space-y-6">
-            <div className="rounded-2xl border p-6 sticky top-8" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(16px)" }}>
+            <div className="rounded-2xl border p-6 sticky top-8" style={{ background: T.glassBg, border: `1px solid ${T.glassBorder}`, backdropFilter: "blur(16px)" }}>
               <div className="text-xs font-mono uppercase tracking-[1px] text-[#888] mb-4">TOURNAMENT CONTROLS</div>
 
               <button
@@ -289,7 +289,7 @@ function NewTournamentContent() {
                 className="w-full py-3.5 rounded-2xl text-base font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.985]"
                 style={{
                   background: isValidJson ? T.accent : "#222",
-                  color: isValidJson ? "#111" : "#666",
+                  color: isValidJson ? "#000" : "#666",
                 }}
               >
                 {isLoading ? "RUNNING TOURNAMENT..." : "RUN TOURNAMENT"}
@@ -317,7 +317,7 @@ function NewTournamentContent() {
 
             {/* Status */}
             {status && (
-              <div className="rounded-2xl border p-4 text-sm font-mono" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(16px)" }}>
+              <div className="rounded-2xl border p-4 text-sm font-mono" style={{ background: T.glassBg, border: `1px solid ${T.glassBorder}`, backdropFilter: "blur(16px)" }}>
                 {status}
               </div>
             )}

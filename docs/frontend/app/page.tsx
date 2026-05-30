@@ -132,7 +132,7 @@ export default function DashboardHomepage() {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: T.bg, color: T.text }}>
+    <div style={{ display: "flex", minHeight: "100vh", minWidth: "800px", background: T.bg, color: T.text }}>
       {/* LEFT SIDEBAR - fixed glass */}
       <aside
         style={{

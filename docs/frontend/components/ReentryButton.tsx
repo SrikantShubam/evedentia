@@ -79,8 +79,8 @@ export function ReentryButton({
         disabled={isDisabled || loading}
         className="text-xs font-mono tracking-wider px-3 py-1.5 rounded-xl transition-all"
         style={{
-          background: isDisabled ? "transparent" : "rgba(226,255,93,0.08)",
-          border: `1px solid ${isDisabled ? T.border : "rgba(226,255,93,0.2)"}`,
+          background: isDisabled ? "transparent" : T.glassAccentBg,
+          border: `1px solid ${isDisabled ? T.border : T.glassAccentBorder}`,
           color: isDisabled ? T.muted : T.accent,
           cursor: isDisabled ? "not-allowed" : "pointer",
           opacity: loading ? 0.6 : 1,
@@ -94,7 +94,7 @@ export function ReentryButton({
         {loading ? "Seeding..." : "Seed narrower tournament →"}
       </button>
       {error && (
-        <div className="text-[10px] text-[#ef4444] mt-1 font-mono">{error}</div>
+        <div className="text-[10px] mt-1 font-mono" style={{ color: T.danger }}>{error}</div>
       )}
     </div>
   );

@@ -217,11 +217,12 @@ function PipelineCard({ stage, index }: { stage: (typeof PIPELINE)[0]; index: nu
       transition={{ duration: 0.4, delay: index * 0.06 }}
       onClick={() => setOpen(!open)}
       style={{
-        border: `1px solid ${open ? T.accent : T.border}`,
+        border: `1px solid ${open ? T.accent : T.glassBorder}`,
         borderRadius: "8px",
         padding: "18px 22px",
         cursor: "pointer",
-        background: open ? T.accentDim : T.surface,
+        background: open ? T.accentDim : T.glassBg,
+        backdropFilter: "blur(16px)",
         transition: "all 0.2s ease",
         userSelect: "none" as const,
       }}
@@ -275,11 +276,12 @@ function ProofLevelCard({ level, inView, index }: { level: (typeof PROOF_LEVELS)
       transition={{ duration: 0.4, delay: index * 0.1 }}
       onClick={() => setActive(!active)}
       style={{
-        border: `1px solid ${active ? level.color : T.border}`,
+        border: `1px solid ${active ? level.color : T.glassBorder}`,
         borderRadius: "10px",
         padding: "22px",
         cursor: "pointer",
-        background: active ? `radial-gradient(ellipse at top left, ${level.color}10, ${T.surface})` : T.surface,
+        background: active ? `radial-gradient(ellipse at top left, ${level.color}10, ${T.glassBg})` : T.glassBg,
+        backdropFilter: "blur(16px)",
         boxShadow: active ? `0 0 20px ${level.color}18` : "none",
         transition: "all 0.25s ease",
       }}
@@ -320,7 +322,7 @@ function CLICommandCard({ c, index, inView }: { c: (typeof CLI_COMMANDS)[0]; ind
       initial={{ opacity: 0, y: 8 }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.35, delay: index * 0.06 }}
-      style={{ border: `1px solid ${T.border}`, borderRadius: "8px", background: T.surface, overflow: "hidden" }}
+      style={{ border: `1px solid ${T.glassBorder}`, borderRadius: "8px", background: T.glassBg, backdropFilter: "blur(16px)", overflow: "hidden" }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 18px", gap: "14px" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -561,19 +563,21 @@ export default function AboutPage() {
           {/* Gates table */}
           <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginBottom: "40px" }}>
             {GATES.map((gate, i) => (
-              <div key={gate.key} style={{ border: `1px solid ${T.border}`, borderRadius: "8px", overflow: "hidden" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "200px 1fr 1fr", gap: "0", minWidth: "680px" }}>
-                  <div style={{ padding: "16px 18px", borderRight: `1px solid ${T.border}`, background: T.surface }}>
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: T.accent, display: "block", marginBottom: "3px", letterSpacing: "0.04em" }}>GATE {String(i + 1).padStart(2, "0")}</span>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: T.text }}>{gate.label}</span>
-                  </div>
-                  <div style={{ padding: "16px 18px", borderRight: `1px solid ${T.border}` }}>
-                    <span style={{ fontSize: "10px", fontFamily: "var(--font-mono)", color: "#4ade80", display: "block", marginBottom: "5px", letterSpacing: "0.08em" }}>PASS</span>
-                    <p style={{ fontSize: "12px", color: T.muted, lineHeight: 1.5 }}>{gate.pass}</p>
-                  </div>
-                  <div style={{ padding: "16px 18px" }}>
-                    <span style={{ fontSize: "10px", fontFamily: "var(--font-mono)", color: "#f87171", display: "block", marginBottom: "5px", letterSpacing: "0.08em" }}>FAIL</span>
-                    <p style={{ fontSize: "12px", color: T.muted, lineHeight: 1.5 }}>{gate.fail}</p>
+              <div key={gate.key} style={{ border: `1px solid ${T.glassBorder}`, borderRadius: "8px", background: T.glassBg, backdropFilter: "blur(16px)" }}>
+                <div style={{ overflowX: "auto" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "200px 1fr 1fr", gap: "0", minWidth: "680px" }}>
+                    <div style={{ padding: "16px 18px", borderRight: `1px solid ${T.glassBorder}` }}>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: "10px", color: T.accent, display: "block", marginBottom: "3px", letterSpacing: "0.04em" }}>GATE {String(i + 1).padStart(2, "0")}</span>
+                      <span style={{ fontSize: "13px", fontWeight: 600, color: T.text }}>{gate.label}</span>
+                    </div>
+                    <div style={{ padding: "16px 18px", borderRight: `1px solid ${T.glassBorder}` }}>
+                      <span style={{ fontSize: "10px", fontFamily: "var(--font-mono)", color: "#4ade80", display: "block", marginBottom: "5px", letterSpacing: "0.08em" }}>PASS</span>
+                      <p style={{ fontSize: "12px", color: T.muted, lineHeight: 1.5 }}>{gate.pass}</p>
+                    </div>
+                    <div style={{ padding: "16px 18px" }}>
+                      <span style={{ fontSize: "10px", fontFamily: "var(--font-mono)", color: "#f87171", display: "block", marginBottom: "5px", letterSpacing: "0.08em" }}>FAIL</span>
+                      <p style={{ fontSize: "12px", color: T.muted, lineHeight: 1.5 }}>{gate.fail}</p>
+                    </div>
                   </div>
                 </div>
               </div>
