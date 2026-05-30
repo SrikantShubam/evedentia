@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { T } from "@/lib/tokens";
 
 const API = process.env.NEXT_PUBLIC_EVIDENTIA_API ?? "http://127.0.0.1:8000";
@@ -24,7 +25,7 @@ const SAMPLE_IDEA = {
 const ANCHORS = ["onboarding-tools", "invoice-reconciliation", "dev-tooling", "crm-for-agencies", "expense-tracking"];
 const GATE_PROFILES = ["consumer_app", "b2b_workflow", "browser_extension", "agency_service"];
 
-export default function NewTournamentPage() {
+function NewTournamentContent() {
   const [playerId, setPlayerId] = useState("agency-a");
   const [profileOverride, setProfileOverride] = useState("");
   const [ideasText, setIdeasText] = useState(JSON.stringify([SAMPLE_IDEA], null, 2));
@@ -35,6 +36,24 @@ export default function NewTournamentPage() {
   const [signalCount, setSignalCount] = useState<number | null>(null);
   const [isHarvesting, setIsHarvesting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const searchParams = useSearchParams();
+  const hasPrefilledRef = useRef(false);
+
+  // Prefill support: ?prefill=anchor_slug (e.g. onboarding-tools) and ?player=playerId
+  // Guard with ref ensures prefill happens only once on initial load (does not fight controlled state or override later user input)
+  useEffect(() => {
+    if (hasPrefilledRef.current) return;
+    const prefill = searchParams.get("prefill");
+    if (prefill && ANCHORS.includes(prefill)) {
+      setAnchorSlug(prefill);
+    }
+    const player = searchParams.get("player");
+    if (player) {
+      setPlayerId(player);
+    }
+    hasPrefilledRef.current = true;
+  }, [searchParams]);
 
   const inferredProfile = useMemo(() => {
     try {
@@ -306,5 +325,17 @@ export default function NewTournamentPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function NewTournamentPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen flex items-center justify-center" style={{ background: T.bg, color: T.text }}>
+        <div className="font-mono text-sm text-[#666]">Loading tournament form...</div>
+      </main>
+    }>
+      <NewTournamentContent />
+    </Suspense>
   );
 }

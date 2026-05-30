@@ -38,7 +38,7 @@ function humanizeGate(gate: string): string {
 export function SwimLanes({ gates, lanes, onIdeaTrail }: SwimLanesProps) {
   return (
     <div
-      className="flex gap-3 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-white/10"
+      className="flex gap-3 overflow-x-auto pb-4 snap-x snap-mandatory"
       style={{ scrollbarWidth: "thin" }}
     >
       {gates.map((gate) => {
