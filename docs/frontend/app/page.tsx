@@ -55,9 +55,11 @@ export default function DashboardHomepage() {
 
   const activeSources = Object.entries(sources).filter(([, v]) => v).map(([k]) => k);
 
-  const runScan = async () => {
-    const q = keyword.trim();
+  const runScan = async (overrideKeyword?: string) => {
+    const q = (overrideKeyword || keyword).trim();
     if (!q) return;
+
+    if (overrideKeyword) setKeyword(overrideKeyword);
 
     setScanning(true);
     setScanError(null);
@@ -116,15 +118,10 @@ export default function DashboardHomepage() {
     }
   };
 
-  const handleTopSearchSubmit = (e: React.FormEvent) => {
+  const handleTopSearchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (topSearch.trim()) {
-      setKeyword(topSearch.trim());
-      // scroll to scan section
-      const el = document.getElementById("scan-section");
-      el?.scrollIntoView({ behavior: "smooth", block: "start" });
-      // focus input after scroll
-      setTimeout(() => keywordInputRef.current?.focus(), 450);
+      await runScan(topSearch.trim());
     }
   };
 
@@ -417,7 +414,7 @@ export default function DashboardHomepage() {
               </div>
 
               <button
-                onClick={runScan}
+                onClick={() => runScan()}
                 disabled={scanning || !keyword.trim()}
                 style={{
                   fontFamily: "var(--font-mono)",
