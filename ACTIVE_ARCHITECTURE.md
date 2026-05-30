@@ -1,63 +1,132 @@
-# ACTIVE_ARCHITECTURE.md
+# Evidentia Architecture
 
-**Current System Summary**
+## Current System (May 2026)
 
-Evidentia is an LLM-powered idea tournament engine featuring a FastAPI backend and a Next.js 15 glassmorphism dashboard. The core loop is: harvest signals → generate ideas → run deterministic tournament with gates (per-gate LLM scoring under player budgets) → produce a DecisionMemo with the winner plus a RealitySpike (tactical validation plan). This is the single source of truth for the running implementation.
+Evidentia is an LLM-powered idea tournament engine with a FastAPI backend and Next.js glassmorphism dashboard. Ideas are harvested from sources, generated from anchors, then prosecuted through hard gates by LLM judges. Results stream via SSE to a poker-board UI. The system replaces the original deterministic CLI pipeline described in IMPLEMENTATION_PLAN.md.
+
+## Tech Stack
+
+- **Backend:** Python 3.10, FastAPI, SQLite, SSE streaming via sse-starlette
+- **Frontend:** Next.js 15 (App Router), React 19, Tailwind CSS v4, Framer Motion
+- **Design:** Dark theme (#0a0a0a), glassmorphism (backdrop-filter blur), accent #e2ff5d, design tokens in `lib/tokens.ts`
 
 ## API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | /harvest | Accepts signals and stores them |
-| POST | /generate | Generates candidate ideas from harvested signals |
-| POST | /tournament | Creates tournament, runs all gates, returns full result |
-| GET | /tournament/{id} | Returns tournament payload (note: IdeaState entries are flattened — id and label promoted to top level alongside nested idea) |
-| GET | /tournament/{id}/sse | SSE stream of real-time gate evaluation events |
-| GET | /tournament/{id}/memo | Decision memo containing winner, RealitySpike, and full rationale |
-| GET | /tournament/{id}/idea/{idea_id} | Single idea's complete gate trail and scores |
-| POST | /player | Upsert a player profile (JSON body) |
-| GET | /player/{id} | Retrieve a player profile by ID |
+| POST | /player | Create or update a player profile |
+| GET | /player/{id} | Get player profile |
+| POST | /harvest | Harvest demand signals for an anchor |
+| POST | /generate | Generate ideas from an anchor or pursue entries |
+| POST | /tournament | Create a tournament, run gates, return result |
+| GET | /tournament/{id} | Get tournament payload (flattened — id/label at top level) |
+| GET | /tournament/{id}/sse | SSE stream of gate events (event: "gate", event: "done") |
+| GET | /tournament/{id}/memo | Decision memo with winner + RealitySpike |
+| GET | /tournament/{id}/idea/{id} | Single idea gate trail |
 
 ## Key Data Shapes
 
-**Idea**  
-`id: str`, `label: str`, `anchor_slug: str | None`, `incumbent: str | None`, `cohort: str`, `pain_hypothesis: str`, `kill_condition: KillCondition`, `evidence_ids: list[str]`, `search_queries: list[str]`, `origin: str`, `gate_profile: str`, `gate_profile_source: str`, `parent_idea_id: str | None`, `evidence_provenance: dict[str, str]`
+### TournamentPayload
+```json
+{
+  "tournament_id": "string",
+  "player_id": "string",
+  "gate_profile": "string",
+  "total_llm_cost_usd": 0.0,
+  "reentry_depth": 0,
+  "ideas": [IdeaState],
+  "memo": DecisionMemo | null
+}
+```
 
-**IdeaState**  
-`id` (promoted from nested), `label` (promoted from nested), `idea: Idea` (nested), `gate_results: list[GateResult]`, `confidence_score_so_far: float`, `is_complete: bool`, `terminal_verdict: TerminalVerdict | None`
+### IdeaState (flattened)
+```json
+{
+  "id": "string",
+  "label": "string",
+  "idea": { "id": "string", "label": "string", "anchor_slug": "string", ... },
+  "gate_results": [GateResult],
+  "confidence_score_so_far": 0.0,
+  "is_complete": false,
+  "terminal_verdict": "PURSUE_SPIKE" | "KILL" | "INSUFFICIENT_EVIDENCE" | null
+}
+```
 
-**GateResult**  
-`gate_name: str`, `status: GateStatus`, `outcome: RoundOutcome | None`, `evidence_ids: list[str]`, `confidence: float | None`, `killed_by: str | None`, `llm_cost_usd: float`, `error: str | None`
+### GateResult
+```json
+{
+  "gate_name": "string",
+  "status": "COMPLETED" | "ERROR",
+  "outcome": "PASS" | "FAIL" | null,
+  "evidence_ids": ["string"],
+  "confidence": 0.0 | null,
+  "killed_by": "string" | null,
+  "llm_cost_usd": 0.0,
+  "error": "string" | null
+}
+```
 
-**TournamentResult**  
-`tournament_id: str`, `player_id: str`, `gate_profile: str`, `started_at: str`, `finished_at: str | None`, `ideas: list[IdeaState]`, `memo: DecisionMemo | None`, `total_llm_cost_usd: float`, `stopped_reason: str`, `is_rankable: bool`, `parent_tournament_id: str | None`, `reentry_depth: int`, `schema_version: int`
+### DecisionMemo
+```json
+{
+  "tournament_id": "string",
+  "player_id": "string",
+  "winner": IdeaState | null,
+  "shortlist": [IdeaState],
+  "insufficient_evidence": [IdeaState],
+  "killed": [IdeaState],
+  "zero_winner_diagnosis": "string" | null,
+  "best_reentry_narrowing": "string" | null,
+  "reality_spike": RealitySpike | null
+}
+```
 
-**DecisionMemo**  
-`tournament_id: str`, `player_id: str`, `winner: IdeaState | None`, `shortlist: list[IdeaState]`, `insufficient_evidence: list[IdeaState]`, `killed: list[IdeaState]`, `why_winner_beat_alternatives: str`, `strongest_argument_for: str`, `strongest_argument_against: str`, `missing_evidence_checklist: list[str]`, `reality_spike: RealitySpike | None`, `zero_winner_diagnosis: str | None`, `schema_version: int`
+### RealitySpike
+```json
+{
+  "idea_id": "string",
+  "target_customer_profile": "string",
+  "outreach_message": "string",
+  "landing_page_headline": "string",
+  "landing_page_subhead": "string",
+  "interview_questions": ["string x5"],
+  "success_criteria": "string",
+  "fail_criteria": "string",
+  "weeks_to_run": 6,
+  "provenance": "LLM_GENERATED_TACTICAL_COPY"
+}
+```
 
-**RealitySpike** (embedded in DecisionMemo)  
-`idea_id: str`, `target_customer_profile: str`, `outreach_message: str`, `landing_page_headline: str`, `landing_page_subhead: str`, `interview_questions: list[str]` (exactly 5), `success_criteria: str`, `fail_criteria: str`, `weeks_to_run: int`, `provenance: str`
+## Frontend Routes
 
-**PlayerProfile** (for POST/GET /player)  
-`id: str`, `team: str`, `skills: list[str]`, `budget_validate_usd: int`, `budget_build_usd: int`, `budget_reach_usd: int`, `weeks_to_ship: int`, `risk: "low"|"med"|"high"`, `max_llm_calls_per_tournament: int`, `max_paid_queries_per_tournament: int`, `max_reentry_rounds: int`
-
-Other supporting types: `DemandSignal`, `Anchor`, `TerminalVerdict`, `GateStatus`, `RoundOutcome`, `Provenance`, `KillCondition`.
+| Route | Component | Description |
+|-------|-----------|-------------|
+| / | DashboardHomepage | Dashboard with scan, results grid, validation engine |
+| /about | (static) | Old marketing content, pipeline docs |
+| /tournament/new | NewTournamentPage | Create tournament with seed ideas |
+| /tournament/[id] | TournamentBoardPage | Live poker board with SwimLanes + SSE |
+| /tournament/[id]/memo | (dynamic) | Decision memo + RealitySpikeCard |
+| /ideas/[id] | (dynamic) | Evidence trail timeline per idea |
+| /player | PlayerProfiles | CRUD for player profiles |
 
 ## Proof Level Stance
 
-The original IMPLEMENTATION_PLAN.md envisioned a deterministic CLI core. Current reality uses per-gate LLM calls for scoring and confidence (within [0.5, 0.95] bounds), with deterministic gate sequencing, terminal verdicts (KILL / INSUFFICIENT_EVIDENCE / SHORTLIST / PURSUE_SPIKE), re-entry rules, and budget enforcement. Fixture-proof tests exist in the tournament engine (e.g., `tests/integration/test_tournament_engine_fixture.py`, acceptance suites exercising full flows against saved inputs). Dry-run paths are present for generation/harvest. Live proof is delivered via the dashboard + SSE streaming of gate events. All proof levels are labeled explicitly in code, tests, and outputs (fixture / dry-run / live); no live retrieval is mischaracterized as deterministic fixture proof.
+The original plan (IMPLEMENTATION_PLAN.md) called for a strict fixture-first, deterministic CLI with no LLM until live proof. The current system is a pragmatic deviation: LLM calls are used per-gate for scoring. The system distinguishes:
 
-## Frontend Architecture
+- **Fixture proof:** Engine tests against saved tournament inputs/outputs. Tests exist under tests/.
+- **Dry-run proof:** API runs locally without live retrieval (uses local anchor data).
+- **Live proof:** Dashboard displays real tournament results from the running API.
 
-Next.js 15 App Router with Tailwind v4. All glassmorphism effects are implemented via inline styles using design tokens exported from `lib/tokens.ts` (`glassBg`, `glassBorder`, `glassAccentBg`, `glassAccentBorder`, plus surface/accent colors). No external UI component libraries. The dashboard consumes the FastAPI endpoints (especially tournament SSE for real-time gate progress, memo, and per-idea trails) and renders IdeaState / DecisionMemo artifacts.
+All proof levels are labeled explicitly in outputs. No claims of production readiness without human approval.
 
-## Dev Stack
+## Dev Setup
 
-- Python 3.10+
-- FastAPI (with sse-starlette for `/sse`)
-- SQLite (via `src/evidentia/db.py`; stores tournaments, players, gate event logs)
-- `uv` for Python environment and dependency management
-- Next.js 15 (frontend in `docs/frontend/`)
-- SSE for streaming tournament gate evaluations to the UI
+```
+# Backend
+cd C:\experiments\evidentia\main
+PYTHONPATH=src python scripts/start_api.py
 
-This document reflects the running system (backend + live dashboard) as of the latest implementation. Consult `IMPLEMENTATION_PLAN.md` and `final_pivot.md` for historical context and phased intent; treat this file as the active runtime architecture.
+# Frontend
+cd docs/frontend
+npx next dev
+```
