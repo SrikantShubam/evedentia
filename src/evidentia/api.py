@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from evidentia.anchor import load_all_anchors
-from evidentia.cli import _run_hunt
+from evidentia.cli import _run_hunt, run_live_scan
 from evidentia.db import (
     get_player_profile,
     get_tournament_memo,
@@ -46,6 +46,12 @@ class TournamentRequest(BaseModel):
     player_id: str
     ideas: list[dict]
     gate_profile: str | None = None
+
+
+class ScanRequest(BaseModel):
+    keyword: str
+    sources: list[str] = Field(default_factory=lambda: ["hn"])
+    max_results: int = 3
 
 
 def create_app(*, db_path: str | Path | None = None) -> FastAPI:
@@ -165,6 +171,22 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
             yield {"event": "done", "data": {"tournament_id": tournament_id}}
 
         return EventSourceResponse(generator())
+
+    @app.post("/scan")
+    def post_scan(request: ScanRequest) -> dict:
+        if not request.keyword.strip():
+            raise HTTPException(status_code=400, detail="keyword is required")
+        valid_sources = [s for s in request.sources if s in {"hn", "reddit", "github"}]
+        if not valid_sources:
+            raise HTTPException(status_code=400, detail="at least one valid source is required (hn, reddit, github)")
+        try:
+            return run_live_scan(
+                domain=request.keyword.strip(),
+                sources=valid_sources,
+                max_results=request.max_results,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return app
 
