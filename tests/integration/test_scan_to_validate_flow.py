@@ -1,7 +1,7 @@
 """End-to-end integration test: keyword → scan → validate → tournament.
 
 Requires:
-- SearXNG running at 127.0.0.1:8080
+- SearXNG running at 127.0.0.1:8888
 - Default player profile seeded by API startup
 
 Run with: pytest tests/integration/ -v -m integration

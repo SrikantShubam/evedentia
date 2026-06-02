@@ -3,7 +3,7 @@
 Verifies that scan_web_search_live() produces candidate dicts with the
 exact shape required by the scan pipeline (verify_quote → classify → score).
 
-Prerequisites: SearXNG must be running at 127.0.0.1:8080.
+Prerequisites: SearXNG must be running at 127.0.0.1:8888.
 """
 
 # --- Tests ---
@@ -18,7 +18,7 @@ def test_candidate_has_all_required_keys():
     }
     candidates = scan_web_search_live("plastic-free packaging", max_results=3)
     assert len(candidates) > 0, (
-        "SearXNG must return results. Is it running at 127.0.0.1:8080?"
+        "SearXNG must return results. Is it running at 127.0.0.1:8888?"
     )
     for i, c in enumerate(candidates):
         missing = required - set(c.keys())

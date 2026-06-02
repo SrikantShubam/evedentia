@@ -5,7 +5,7 @@ These tests verify:
 - Empty queries are handled without network calls
 - Unreachable SearXNG raises ProviderError (not generic exception)
 
-Prerequisites: SearXNG must be running at 127.0.0.1:8080
+Prerequisites: SearXNG must be running at 127.0.0.1:8888
 with format=json enabled in settings.yml.
 """
 
@@ -17,20 +17,20 @@ import pytest
 
 def _provider():
     from evidentia.providers import SearXNGSearchProvider
-    url = os.environ.get("SEARXNG_URL", "http://127.0.0.1:8080")
+    url = os.environ.get("SEARXNG_URL", "http://127.0.0.1:8888")
     return SearXNGSearchProvider(base_url=url)
 
 
 # --- Tests ---
 
 def test_searxng_returns_hits():
-    """SearXNG at 127.0.0.1:8080 responds with real results."""
+    """SearXNG at 127.0.0.1:8888 responds with real results."""
     provider = _provider()
     hits = provider.search("plastic-free packaging", max_results=3)
     assert len(hits) > 0, (
         "SearXNG must return at least one result. "
-        "Is SearXNG running at 127.0.0.1:8080? "
-        "Run: docker run -d --name evidentia-searxng -p 127.0.0.1:8080:8080 "
+        "Is SearXNG running at 127.0.0.1:8888? "
+        "Run: docker run -d --name evidentia-searxng -p 127.0.0.1:8888:8080 "
         "-v %cd%/searxng/settings.yml:/etc/searxng/settings.yml:ro searxng/searxng"
     )
     for h in hits:
