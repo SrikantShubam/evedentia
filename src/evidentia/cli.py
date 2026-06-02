@@ -873,6 +873,9 @@ def _run_live_source(source: str, domain: str, max_results: int) -> tuple[list[d
         scanner = scan_reddit_live
     elif source == "github":
         scanner = scan_github_live
+    elif source == "web_search":
+        from evidentia.scanners.web_search import scan_web_search_live
+        scanner = scan_web_search_live
     else:
         raise click.ClickException(f"unsupported live source: {source}")
 

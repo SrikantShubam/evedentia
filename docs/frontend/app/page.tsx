@@ -54,7 +54,7 @@ export default function DashboardHomepage() {
 
   // Scan state
   const [keyword, setKeyword] = useState("");
-  const [sources, setSources] = useState({ hn: true, reddit: true, github: true });
+  const [sources, setSources] = useState({ hn: true, reddit: true, github: true, web_search: true });
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [ideas, setIdeas] = useState<Idea[]>([]);
@@ -414,6 +414,7 @@ export default function DashboardHomepage() {
                   { id: "hn", label: "HN" },
                   { id: "reddit", label: "Reddit" },
                   { id: "github", label: "GitHub" },
+                  { id: "web_search", label: "Web" },
                 ].map((s) => {
                   const on = (sources as any)[s.id];
                   return (

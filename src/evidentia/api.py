@@ -20,7 +20,7 @@ from evidentia.db import (
     upsert_player_profile,
 )
 from evidentia.generator import generate_ideas_from_anchor, generate_ideas_from_pursue
-from evidentia.models import Idea, PlayerProfile, TournamentResult
+from evidentia.models import Idea, KillCondition, PlayerProfile, TournamentResult
 from evidentia.tournament.engine import run_tournament
 
 
@@ -45,6 +45,13 @@ class TournamentRequest(BaseModel):
     tournament_id: str
     player_id: str
     ideas: list[dict]
+    gate_profile: str | None = None
+
+
+class ValidateRequest(BaseModel):
+    keyword: str
+    opportunity: dict
+    player_id: str = "default"
     gate_profile: str | None = None
 
 
@@ -133,6 +140,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
         save_tournament_result(result, db_path=db_path, now_utc=_utc_now())
         return result.to_dict()
 
+    # DEPRECATED: Dashboard now uses inline TournamentPanel. Kept for backward compat.
     @app.get("/tournament/{tournament_id}")
     def get_tournament(tournament_id: str) -> dict:
         payload = get_tournament_payload(tournament_id, db_path=db_path)
@@ -140,6 +148,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="tournament not found")
         return payload
 
+    # DEPRECATED: Dashboard now uses inline TournamentPanel. Kept for backward compat.
     @app.get("/tournament/{tournament_id}/idea/{idea_id}")
     def get_tournament_idea(tournament_id: str, idea_id: str) -> dict:
         payload = get_tournament_payload(tournament_id, db_path=db_path)
@@ -151,6 +160,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
                 return state
         raise HTTPException(status_code=404, detail="idea not found")
 
+    # DEPRECATED: Dashboard now uses inline TournamentPanel. Kept for backward compat.
     @app.get("/tournament/{tournament_id}/memo")
     def get_tournament_memo_route(tournament_id: str) -> dict:
         memo = get_tournament_memo(tournament_id, db_path=db_path)
@@ -158,6 +168,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="tournament not found")
         return memo
 
+    # DEPRECATED: Dashboard now uses inline TournamentPanel. Kept for backward compat.
     @app.get("/tournament/{tournament_id}/sse")
     async def tournament_sse(tournament_id: str):
         payload = get_tournament_payload(tournament_id, db_path=db_path)
@@ -187,6 +198,57 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
             )
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.post("/validate")
+    def post_validate(request: ValidateRequest) -> dict:
+        if not request.keyword.strip():
+            raise HTTPException(status_code=400, detail="keyword is required")
+
+        profile = get_player_profile(request.player_id, db_path=db_path)
+        if profile is None:
+            raise HTTPException(status_code=404, detail="player not found")
+
+        opp = request.opportunity
+        keyword = request.keyword.strip()
+
+        hypothesis = opp.get("hypothesis") or {}
+        signals = opp.get("verified_signals") or []
+        verdict = opp.get("verdict") or "unknown"
+        score = opp.get("final_score") or opp.get("score") or 0
+        gate_failures = opp.get("gate_failures") or []
+
+        idea = Idea(
+            id=opp.get("opportunity_id") or f"opp-{datetime.now(timezone.utc).timestamp()}",
+            label=opp.get("label") or hypothesis.get("headline") or opp.get("title") or keyword,
+            anchor_slug=keyword.lower().replace(" ", "-")[:50],
+            incumbent="unknown",
+            cohort=opp.get("cohort") or hypothesis.get("hypothesis_type") or "unknown",
+            pain_hypothesis=opp.get("pain_hypothesis") or hypothesis.get("wedge_statement") or "No hypothesis recorded",
+            kill_condition=KillCondition(
+                description=f"Scan verdict: {verdict}. Score: {score}",
+                gate_name=gate_failures[0] if gate_failures else "scan_gate",
+            ),
+            evidence_ids=[f"sig-{i+1}" for i in range(len(signals))] or ["sig-1"],
+            search_queries=[keyword],
+            origin="scan",
+            gate_profile=request.gate_profile or "consumer_app",
+            gate_profile_source="inferred:scan",
+        )
+
+        tournament_id = f"scan-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{idea.id[:8]}"
+
+        result: TournamentResult = run_tournament(
+            ideas=[idea],
+            player=profile,
+            tournament_id=tournament_id,
+            gate_profile=request.gate_profile,
+        )
+        save_tournament_result(result, db_path=db_path, now_utc=_utc_now())
+        data = result.to_dict()
+        for idea_state in data.get("ideas", []):
+            nested = idea_state.get("idea", {})
+            idea_state["cohort"] = nested.get("cohort")
+        return data
 
     return app
 
