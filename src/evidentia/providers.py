@@ -287,10 +287,47 @@ class GroqProvider(LLMProvider):
         return json.loads(data["choices"][0]["message"]["content"])
 
 
+class DuckDuckGoWebSearchProvider(SearchProvider):
+    """Web search provider using DuckDuckGo's search results.
+    
+    Uses the duckduckgo_search library (DDGS). No API key needed.
+    Falls back to SearXNG if DDGS fails.
+    """
+    name = "duckduckgo_web"
+
+    def search(self, query: str, max_results: int = 5) -> list[SearchHit]:
+        if not query or not query.strip():
+            return []
+        try:
+            from duckduckgo_search import DDGS
+            with DDGS() as ddgs:
+                raw = list(ddgs.text(query, max_results=max_results))
+        except Exception as exc:
+            raise ProviderError(f"DuckDuckGo search failed for query='{query}': {exc}") from exc
+
+        hits = []
+        for item in raw[:max_results]:
+            title = str(item.get("title") or "")
+            url = str(item.get("href") or "")
+            snippet = str(item.get("body") or "")
+            if not url:
+                continue
+            hits.append(SearchHit(title=title, url=url, snippet=snippet))
+        return hits
+
+
 def choose_search_provider(env: dict[str, str] | None = None) -> SearchProvider:
+    """Select the best available search provider.
+    
+    Priority:
+    1. DuckDuckGo Web Search (free, no API key, always works)
+    2. SearXNG (if SEARXNG_URL is set — Docker or self-hosted)
+    """
     import os
     searxng_url = os.environ.get("SEARXNG_URL")
-    return SearXNGSearchProvider(base_url=searxng_url)
+    if searxng_url:
+        return SearXNGSearchProvider(base_url=searxng_url)
+    return DuckDuckGoWebSearchProvider()
 
 
 def choose_llm_provider(env: dict[str, str]) -> tuple[LLMProvider, str]:

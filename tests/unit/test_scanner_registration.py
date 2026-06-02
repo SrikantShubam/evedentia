@@ -43,13 +43,22 @@ def test_web_search_in_cli_dispatcher():
         )
 
 
-def test_choose_search_provider_prefers_searxng():
-    """choose_search_provider returns SearXNG provider by default."""
+def test_choose_search_provider_default_is_ddg():
+    """choose_search_provider returns DuckDuckGo by default (no env set)."""
     import os
     from evidentia.providers import choose_search_provider
 
     provider = choose_search_provider()
-    assert provider.name == "searxng", (
-        f"Expected 'searxng' provider, got '{provider.name}'. "
-        "The choose_search_provider function must prefer SearXNG."
+    assert provider.name == "duckduckgo_web", (
+        f"Expected 'duckduckgo_web' provider, got '{provider.name}'. "
+        "Default should be DuckDuckGo when SEARXNG_URL is not set."
     )
+
+
+def test_choose_search_provider_searxng_when_url_set():
+    """choose_search_provider returns SearXNG when SEARXNG_URL is set."""
+    import os
+    os.environ["SEARXNG_URL"] = "http://127.0.0.1:8888"
+    from evidentia.providers import choose_search_provider
+    provider = choose_search_provider()
+    assert provider.name == "searxng"
