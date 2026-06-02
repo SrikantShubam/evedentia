@@ -26,7 +26,7 @@ def _provider():
 def test_searxng_returns_hits():
     """SearXNG at 127.0.0.1:8888 responds with real results."""
     provider = _provider()
-    hits = provider.search("plastic-free packaging", max_results=3)
+    hits = provider.search("latest technology trends", max_results=3)
     assert len(hits) > 0, (
         "SearXNG must return at least one result. "
         "Is SearXNG running at 127.0.0.1:8888? "

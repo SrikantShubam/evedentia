@@ -187,9 +187,9 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     def post_scan(request: ScanRequest) -> dict:
         if not request.keyword.strip():
             raise HTTPException(status_code=400, detail="keyword is required")
-        valid_sources = [s for s in request.sources if s in {"hn", "reddit", "github"}]
+        valid_sources = [s for s in request.sources if s in {"hn", "reddit", "github", "web_search"}]
         if not valid_sources:
-            raise HTTPException(status_code=400, detail="at least one valid source is required (hn, reddit, github)")
+            raise HTTPException(status_code=400, detail="at least one valid source is required (hn, reddit, github, web_search)")
         try:
             return run_live_scan(
                 domain=request.keyword.strip(),

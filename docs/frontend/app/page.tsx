@@ -2,9 +2,9 @@
 
 import { useRef, useState } from "react";
 import { motion } from "motion/react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { T } from "@/lib/tokens";
+import { TournamentPanel } from "@/components/TournamentPanel";
 
 const API = process.env.NEXT_PUBLIC_EVIDENTIA_API ?? "http://127.0.0.1:8000";
 
@@ -20,7 +20,7 @@ interface Idea {
     wedge_statement?: string;
     hypothesis_type?: string;
   };
-  verdict?: string;
+  verdict?: "PURSUE" | "REFINE" | "KILL";
   final_score?: number;
   score?: number;
   gate_failures?: string[];
@@ -49,7 +49,6 @@ const NAV_ITEMS = [
 
 // --- Main Dashboard Homepage -------------------------------------------
 export default function DashboardHomepage() {
-  const router = useRouter();
   const keywordInputRef = useRef<HTMLInputElement>(null);
 
   // Scan state
@@ -59,6 +58,9 @@ export default function DashboardHomepage() {
   const [scanError, setScanError] = useState<string | null>(null);
   const [ideas, setIdeas] = useState<Idea[]>([]);
   const [hasScanned, setHasScanned] = useState(false);
+
+  // Validation panel state
+  const [activeValidation, setActiveValidation] = useState<{ opp: Idea; keyword: string } | null>(null);
 
   // Top bar search (light wiring)
   const [topSearch, setTopSearch] = useState("");
@@ -100,46 +102,6 @@ export default function DashboardHomepage() {
       setScanError(e instanceof Error ? e.message : "Scan failed");
     } finally {
       setScanning(false);
-    }
-  };
-
-  const handleRunTournament = async (opp: Idea) => {
-    const tournamentId = crypto.randomUUID();
-    const ideaForTourney = {
-      id: opp.opportunity_id || `opp-${Date.now()}`,
-      label: opp.label || opp.title || opp.hypothesis?.headline || "Untitled",
-      anchor_slug: keyword.trim().toLowerCase().replace(/\s+/g, "-"),
-      incumbent: "unknown",
-      cohort: opp.cohort || opp.hypothesis?.hypothesis_type || "unknown",
-      pain_hypothesis: opp.pain_hypothesis || opp.hypothesis?.wedge_statement || "No hypothesis recorded",
-      kill_condition: {
-        description: `Scan verdict: ${opp.verdict || "unknown"}. Score: ${opp.final_score ?? opp.score ?? 0}`,
-        gate_name: opp.gate_failures?.[0] || "scan_gate",
-      },
-      evidence_ids: (opp.verified_signals || []).map((_: unknown, i: number) => `sig-${i + 1}`),
-      search_queries: [keyword.trim()],
-      origin: "scan",
-      gate_profile: "consumer_app",
-      gate_profile_source: "inferred:scan",
-    };
-    try {
-      const res = await fetch(`${API}/tournament`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tournament_id: tournamentId,
-          player_id: "default",
-          ideas: [ideaForTourney],
-          gate_profile: "balanced",
-        }),
-      });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(txt || "Tournament creation failed");
-      }
-      router.push(`/tournament/${encodeURIComponent(tournamentId)}`);
-    } catch (e: unknown) {
-      alert(`Failed to start tournament: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -549,7 +511,7 @@ export default function DashboardHomepage() {
                         </div>
                         <div style={{ marginTop: "auto", paddingTop: "6px" }}>
                           <button
-                            onClick={() => handleRunTournament(idea)}
+                            onClick={() => setActiveValidation({ opp: idea, keyword })}
                             style={{
                               width: "100%",
                               padding: "8px 12px",
@@ -563,7 +525,7 @@ export default function DashboardHomepage() {
                               cursor: "pointer",
                             }}
                           >
-                            Run Tournament ▶
+                            Validate ▼
                           </button>
                         </div>
                       </motion.div>
@@ -591,6 +553,17 @@ export default function DashboardHomepage() {
                   <div>Try a broader keyword or different sources. Real demand hides in the long tail.</div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* INLINE TOURNAMENT PANEL */}
+          {activeValidation && (
+            <div style={{ marginBottom: "46px" }}>
+              <TournamentPanel
+                opportunity={activeValidation.opp}
+                keyword={activeValidation.keyword}
+                onClose={() => setActiveValidation(null)}
+              />
             </div>
           )}
 

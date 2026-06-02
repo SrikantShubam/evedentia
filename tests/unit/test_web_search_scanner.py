@@ -16,7 +16,7 @@ def test_candidate_has_all_required_keys():
         "source", "title", "source_url", "published_at",
         "verbatim_quote", "source_text", "cluster_id",
     }
-    candidates = scan_web_search_live("plastic-free packaging", max_results=3)
+    candidates = scan_web_search_live("latest technology trends", max_results=3)
     assert len(candidates) > 0, (
         "SearXNG must return results. Is it running at 127.0.0.1:8888?"
     )
