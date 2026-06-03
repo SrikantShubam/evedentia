@@ -316,18 +316,45 @@ class DuckDuckGoWebSearchProvider(SearchProvider):
         return hits
 
 
-def choose_search_provider(env: dict[str, str] | None = None) -> SearchProvider:
-    """Select the best available search provider.
+class FallbackSearchProvider(SearchProvider):
+    """Composite provider that tries SearXNG first, falls back to DuckDuckGo.
     
-    Priority:
-    1. DuckDuckGo Web Search (free, no API key, always works)
-    2. SearXNG (if SEARXNG_URL is set — Docker or self-hosted)
+    SearXNG is always the primary attempt (defaults to localhost:8888).
+    If SearXNG is unreachable or returns errors, DuckDuckGo is used as fallback.
+    The SEARXNG_URL env var can override the default SearXNG address.
+    """
+    name = "fallback"
+
+    def __init__(self, searxng_url: str | None = None, timeout: int = 15):
+        import os
+        self._primary = SearXNGSearchProvider(
+            base_url=searxng_url or os.environ.get("SEARXNG_URL", "http://127.0.0.1:8888"),
+            timeout=timeout,
+        )
+        self._fallback = DuckDuckGoWebSearchProvider()
+
+    def search(self, query: str, max_results: int = 5) -> list[SearchHit]:
+        try:
+            return self._primary.search(query, max_results=max_results)
+        except ProviderError:
+            pass
+        try:
+            return self._fallback.search(query, max_results=max_results)
+        except ProviderError:
+            raise ProviderError(
+                f"All search providers failed for query='{query}': "
+                f"SearXNG and DuckDuckGo both unreachable"
+            )
+
+
+def choose_search_provider(env: dict[str, str] | None = None) -> SearchProvider:
+    """Select search provider with automatic fallback.
+    
+    Always tries SearXNG first (localhost:8888 by default, override via SEARXNG_URL).
+    Falls back to DuckDuckGo Web Search if SearXNG is down or rate-limited.
     """
     import os
-    searxng_url = os.environ.get("SEARXNG_URL")
-    if searxng_url:
-        return SearXNGSearchProvider(base_url=searxng_url)
-    return DuckDuckGoWebSearchProvider()
+    return FallbackSearchProvider(searxng_url=os.environ.get("SEARXNG_URL"))
 
 
 def choose_llm_provider(env: dict[str, str]) -> tuple[LLMProvider, str]:

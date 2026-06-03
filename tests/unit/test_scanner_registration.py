@@ -43,22 +43,19 @@ def test_web_search_in_cli_dispatcher():
         )
 
 
-def test_choose_search_provider_default_is_ddg():
-    """choose_search_provider returns DuckDuckGo by default (no env set)."""
-    import os
+def test_choose_search_provider_returns_fallback():
+    """choose_search_provider returns FallbackSearchProvider (tries SearXNG first)."""
     from evidentia.providers import choose_search_provider
-
     provider = choose_search_provider()
-    assert provider.name == "duckduckgo_web", (
-        f"Expected 'duckduckgo_web' provider, got '{provider.name}'. "
-        "Default should be DuckDuckGo when SEARXNG_URL is not set."
+    assert provider.name == "fallback", (
+        f"Expected 'fallback' provider, got '{provider.name}'. "
+        "choose_search_provider should return FallbackSearchProvider."
     )
 
 
-def test_choose_search_provider_searxng_when_url_set():
-    """choose_search_provider returns SearXNG when SEARXNG_URL is set."""
-    import os
-    os.environ["SEARXNG_URL"] = "http://127.0.0.1:8888"
-    from evidentia.providers import choose_search_provider
-    provider = choose_search_provider()
-    assert provider.name == "searxng"
+def test_fallback_tries_searxng_first():
+    """FallbackSearchProvider tries SearXNG on primary attempt."""
+    from evidentia.providers import FallbackSearchProvider
+    provider = FallbackSearchProvider(searxng_url="http://127.0.0.1:8888")
+    assert provider._primary.name == "searxng"
+    assert provider._fallback.name == "duckduckgo_web"
