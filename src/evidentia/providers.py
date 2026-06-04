@@ -290,7 +290,7 @@ class GroqProvider(LLMProvider):
 class DuckDuckGoWebSearchProvider(SearchProvider):
     """Web search provider using DuckDuckGo's search results.
     
-    Uses the duckduckgo_search library (DDGS). No API key needed.
+    Uses the ddgs library (DDGS). No API key needed.
     Falls back to SearXNG if DDGS fails.
     """
     name = "duckduckgo_web"
@@ -299,7 +299,10 @@ class DuckDuckGoWebSearchProvider(SearchProvider):
         if not query or not query.strip():
             return []
         try:
-            from duckduckgo_search import DDGS
+            try:
+                from ddgs import DDGS
+            except ImportError:
+                from duckduckgo_search import DDGS
             with DDGS() as ddgs:
                 raw = list(ddgs.text(query, max_results=max_results))
         except Exception as exc:
@@ -325,17 +328,19 @@ class FallbackSearchProvider(SearchProvider):
     """
     name = "fallback"
 
-    def __init__(self, searxng_url: str | None = None, timeout: int = 15):
+    def __init__(self, searxng_url: str | None = None, timeout: int = 15, env: dict[str, str] | None = None):
         import os
+        env = env or {}
         self._providers: list[SearchProvider] = []
         self._providers.append(
             SearXNGSearchProvider(
-                base_url=searxng_url or os.environ.get("SEARXNG_URL", "http://127.0.0.1:8888"),
+                base_url=searxng_url or env.get("SEARXNG_URL") or os.environ.get("SEARXNG_URL", "http://127.0.0.1:8888"),
                 timeout=timeout,
             )
         )
-        if os.environ.get("TAVILY_API_KEY"):
-            self._providers.append(TavilySearchProvider(os.environ["TAVILY_API_KEY"]))
+        tavily_key = env.get("TAVILY_API_KEY") or os.environ.get("TAVILY_API_KEY")
+        if tavily_key:
+            self._providers.append(TavilySearchProvider(tavily_key))
         self._providers.append(DuckDuckGoWebSearchProvider())
 
     def search(self, query: str, max_results: int = 5) -> list[SearchHit]:
@@ -360,7 +365,7 @@ def choose_search_provider(env: dict[str, str] | None = None) -> SearchProvider:
     Falls back to DuckDuckGo Web Search if SearXNG is down or rate-limited.
     """
     import os
-    return FallbackSearchProvider(searxng_url=os.environ.get("SEARXNG_URL"))
+    return FallbackSearchProvider(searxng_url=os.environ.get("SEARXNG_URL"), env=env)
 
 
 def choose_llm_provider(env: dict[str, str]) -> tuple[LLMProvider, str]:

@@ -1,12 +1,8 @@
 import type { Metadata } from "next";
-import { Roboto } from "next/font/google";
 import "./globals.css";
-
-const roboto = Roboto({
-  variable: "--font-roboto",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
-});
+import { StitchShell } from "@/components/stitch/StitchShell";
+import { Sidebar } from "@/components/stitch/Sidebar";
+import { TopNav } from "@/components/stitch/TopNav";
 
 export const metadata: Metadata = {
   title: "Evidentia + Domain",
@@ -19,8 +15,16 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className={`${roboto.className} ${roboto.variable}`} suppressHydrationWarning>
-        {children}
+      <body suppressHydrationWarning>
+        <StitchShell>
+          <div style={{ display: "flex", minHeight: "100vh" }}>
+            <Sidebar />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+              <TopNav />
+              <main style={{ flex: 1, padding: "24px" }}>{children}</main>
+            </div>
+          </div>
+        </StitchShell>
       </body>
     </html>
   );

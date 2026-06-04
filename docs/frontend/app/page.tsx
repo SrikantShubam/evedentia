@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import Link from "next/link";
 import { T } from "@/lib/tokens";
 import { TournamentPanel } from "@/components/TournamentPanel";
+import { Spinner } from "@/components/Spinner";
 
 const API = process.env.NEXT_PUBLIC_EVIDENTIA_API ?? "http://127.0.0.1:8000";
 
@@ -113,195 +114,7 @@ export default function DashboardHomepage() {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", minWidth: "800px", background: T.bg, color: T.text }}>
-      {/* LEFT SIDEBAR - fixed glass */}
-      <aside
-        style={{
-          width: "240px",
-          flexShrink: 0,
-          height: "100vh",
-          position: "fixed",
-          left: 0,
-          top: 0,
-          background: T.glassBg,
-          borderRight: `1px solid ${T.glassBorder}`,
-          backdropFilter: "blur(16px)",
-          padding: "24px 18px",
-          display: "flex",
-          flexDirection: "column",
-          zIndex: 40,
-        }}
-      >
-        {/* Logo */}
-        <Link href="/" style={{ textDecoration: "none" }}>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: "18px", fontWeight: 600, letterSpacing: "-0.02em", color: T.text, marginBottom: "28px" }}>
-            evidentia
-          </div>
-        </Link>
-
-        {/* Nav */}
-        <nav style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "auto" }}>
-          {NAV_ITEMS.map((item) => {
-            const isActive = item.active;
-            const content = (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  padding: "9px 12px",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  color: isActive ? T.accent : T.mutedLight,
-                  background: isActive ? T.accentDim : "transparent",
-                  border: isActive ? `1px solid ${T.glassAccentBorder}` : "1px solid transparent",
-                  cursor: item.soon ? "default" : "pointer",
-                  opacity: item.soon ? 0.6 : 1,
-                }}
-                title={item.soon ? "Coming soon" : undefined}
-              >
-                <span>{item.icon}</span>
-                <span>{item.label}</span>
-              </div>
-            );
-            if (item.soon) return <div key={item.label}>{content}</div>;
-            return (
-              <Link key={item.label} href={item.href} style={{ textDecoration: "none" }}>
-                {content}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Create New Idea - accent button */}
-        <Link href="/tournament/new" style={{ textDecoration: "none" }}>
-          <div
-            style={{
-              marginTop: "auto",
-              padding: "10px 14px",
-              borderRadius: "8px",
-              background: T.accent,
-              color: "#000",
-              fontWeight: 600,
-              fontSize: "13px",
-              fontFamily: "var(--font-mono)",
-              textAlign: "center" as const,
-              letterSpacing: "0.02em",
-              border: `1px solid ${T.accent}`,
-              cursor: "pointer",
-            }}
-          >
-            + Create New Idea
-          </div>
-        </Link>
-      </aside>
-
-      {/* MAIN AREA */}
-      <div style={{ marginLeft: "240px", flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-        {/* TOP BAR */}
-        <div
-          style={{
-            height: "56px",
-            borderBottom: `1px solid ${T.border}`,
-            background: "rgba(10,10,10,0.7)",
-            backdropFilter: "blur(10px)",
-            padding: "0 24px",
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            position: "sticky",
-            top: 0,
-            zIndex: 30,
-          }}
-        >
-          {/* Search */}
-          <form onSubmit={handleTopSearchSubmit} style={{ flex: 1, maxWidth: "360px" }}>
-            <input
-              type="text"
-              value={topSearch}
-              onChange={(e) => setTopSearch(e.target.value)}
-              placeholder="Search signals or ideas..."
-              style={{
-                width: "100%",
-                fontSize: "13px",
-                padding: "8px 12px",
-                borderRadius: "999px",
-                border: `1px solid ${T.glassBorder}`,
-                background: T.glassBg,
-                color: T.text,
-                outline: "none",
-                fontFamily: "var(--font-mono)",
-              }}
-            />
-          </form>
-
-          <div style={{ flex: 1 }} />
-
-          {/* Notifications */}
-          <button
-            title="Notifications"
-            style={{ background: "none", border: "none", fontSize: "16px", cursor: "pointer", color: T.mutedLight, padding: "4px" }}
-          >
-            🔔
-          </button>
-
-          {/* Avatar */}
-          <div
-            title="Account"
-            style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "50%",
-              background: T.glassBg,
-              border: `1px solid ${T.glassBorder}`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "13px",
-              cursor: "pointer",
-            }}
-          >
-            👤
-          </div>
-
-          {/* Get Started pill */}
-          <Link href="/about" style={{ textDecoration: "none" }}>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: "12px",
-                padding: "6px 14px",
-                borderRadius: "999px",
-                border: `1px solid ${T.glassAccentBorder}`,
-                background: T.glassAccentBg,
-                color: T.accent,
-                cursor: "pointer",
-                whiteSpace: "nowrap" as const,
-              }}
-            >
-              Get Started
-            </div>
-          </Link>
-
-          {/* Pro Plan badge */}
-          <div
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "11px",
-              padding: "4px 10px",
-              borderRadius: "999px",
-              border: `1px solid ${T.border}`,
-              color: T.mutedLight,
-              background: T.glassBg,
-            }}
-          >
-            Pro Plan
-          </div>
-        </div>
-
-        {/* SCROLLABLE CONTENT */}
-        <div style={{ flex: 1, overflow: "auto", padding: "32px 28px 60px" }}>
-          {/* HERO BANNER */}
+    <>
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -533,25 +346,31 @@ export default function DashboardHomepage() {
                   })
                 ) : null}
 
-                {/* More Signals Needed placeholder (always last or only) */}
-                <div
-                  style={{
-                    border: `1px solid ${T.glassBorder}`,
-                    background: T.glassBg,
-                    borderRadius: "10px",
-                    padding: "18px",
-                    backdropFilter: "blur(14px)",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    color: T.muted,
-                    fontSize: "13px",
-                    minHeight: "138px",
-                  }}
-                >
-                  <div style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: T.mutedLight, marginBottom: "6px" }}>MORE SIGNALS NEEDED</div>
-                  <div>Try a broader keyword or different sources. Real demand hides in the long tail.</div>
-                </div>
+                {scanning ? (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "138px", gap: 12 }}>
+                    <Spinner size={24} />
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: T.mutedLight }}>Scanning for signals...</span>
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      border: `1px solid ${T.glassBorder}`,
+                      background: T.glassBg,
+                      borderRadius: "10px",
+                      padding: "18px",
+                      backdropFilter: "blur(14px)",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      color: T.muted,
+                      fontSize: "13px",
+                      minHeight: "138px",
+                    }}
+                  >
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: T.mutedLight, marginBottom: "6px" }}>MORE SIGNALS NEEDED</div>
+                    <div>Try a broader keyword or different sources. Real demand hides in the long tail.</div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -598,32 +417,6 @@ export default function DashboardHomepage() {
               ))}
             </div>
           </div>
-        </div>
-
-        {/* FOOTER */}
-        <footer
-          style={{
-            borderTop: `1px solid ${T.border}`,
-            padding: "18px 28px",
-            fontSize: "12px",
-            color: T.muted,
-            fontFamily: "var(--font-mono)",
-            display: "flex",
-            alignItems: "center",
-            gap: "18px",
-            flexWrap: "wrap" as const,
-          }}
-        >
-          <span>Evidentia</span>
-          <div style={{ display: "flex", gap: "14px", color: T.mutedLight }}>
-            <a href="#scan-section" style={{ color: "inherit", textDecoration: "none" }}>Methodology</a>
-            <a href="/about" style={{ color: "inherit", textDecoration: "none" }}>Pricing</a>
-            <a href="/about" style={{ color: "inherit", textDecoration: "none" }}>Privacy</a>
-            <a href="https://github.com" target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "none" }}>API</a>
-          </div>
-          <span style={{ marginLeft: "auto", opacity: 0.6 }}>© Evidentia</span>
-        </footer>
-      </div>
-    </div>
+    </>
   );
 }

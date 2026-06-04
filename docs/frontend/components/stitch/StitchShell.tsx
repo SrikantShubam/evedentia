@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-export default function StitchShell() {
+export default function StitchShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Inject CDN Tailwind only on client side to avoid hydration mismatch
     const existing = document.getElementById("stitch-tailwind");
@@ -26,5 +26,5 @@ export default function StitchShell() {
     document.head.appendChild(style);
   }, []);
 
-  return null;
+  return <>{children}</>;
 }

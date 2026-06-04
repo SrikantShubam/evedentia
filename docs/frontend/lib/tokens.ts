@@ -3,8 +3,8 @@ export const T = {
   surface: "#111111",
   surfaceHover: "#161616",
   border: "#1f1f1f",
-  accent: "#e2ff5d",
-  accentDim: "rgba(226,255,93,0.08)",
+  accent: "#7c5cfc",
+  accentDim: "rgba(124,92,252,0.08)",
   text: "#f0f0f0",
   muted: "#666666",
   mutedLight: "#888888",
@@ -13,8 +13,8 @@ export const T = {
   warning: "#f59e0b",
   glassBg: "rgba(255,255,255,0.03)",
   glassBorder: "rgba(255,255,255,0.08)",
-  glassAccentBg: "rgba(226,255,93,0.06)",
-  glassAccentBorder: "rgba(226,255,93,0.15)",
+  glassAccentBg: "rgba(124,92,252,0.06)",
+  glassAccentBorder: "rgba(124,92,252,0.15)",
 } as const;
 
 export type Tokens = typeof T;
