@@ -181,13 +181,32 @@ def _run_hunt(anchor: Anchor, *, limit: int, dry_run: bool, env: dict[str, str] 
     }
 
 
-def _ideas_from_source(anchor_slug: str | None, from_pursues: bool, count: int) -> list[dict]:
+def _ideas_from_source(
+    anchor_slug: str | None,
+    from_pursues: bool,
+    count: int,
+    env: dict[str, str] | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+    profile_override: str | None = None,
+) -> list[dict]:
     if from_pursues:
         pursues = top_index_ideas(_index_path(), verdict="PURSUE", n=max(20, count * 2))
-        return generate_ideas_from_pursue(pursues, count=count)
+        return generate_ideas_from_pursue(pursues, count=count, env=env, provider=provider, model=model)
     if not anchor_slug:
         raise click.ClickException("--anchor is required unless --from-pursues is used")
-    return generate_ideas_from_anchor(_load_anchor_by_slug(anchor_slug, should_verify=False), count=count)
+    ideas = generate_ideas_from_anchor(
+        _load_anchor_by_slug(anchor_slug, should_verify=False),
+        count=count,
+        env=env,
+        provider=provider,
+        model=model,
+    )
+    if profile_override:
+        for idea in ideas:
+            idea["gate_profile"] = profile_override
+            idea["gate_profile_source"] = "explicit"
+    return ideas
 
 
 def _print_best_table(rows: list[dict]) -> None:
@@ -1052,9 +1071,21 @@ def hunt_all_command(limit: int, dry_run: bool) -> None:
 @click.option("--anchor", "anchor_slug", type=str)
 @click.option("--from-pursues", is_flag=True, default=False)
 @click.option("--count", type=int, default=10, show_default=True)
-def generate_command(anchor_slug: str | None, from_pursues: bool, count: int) -> None:
+@click.option("--provider", type=str, default=None, help="LLM provider to use (e.g. openrouter, groq, nvidia)")
+@click.option("--model", type=str, default=None, help="Model name override")
+@click.option("--profile", "profile_override", type=str, default=None, help="Force gate profile (consumer_app, b2b_workflow, etc.)")
+def generate_command(anchor_slug: str | None, from_pursues: bool, count: int, provider: str | None, model: str | None, profile_override: str | None) -> None:
     """Generate niche ideas from one anchor or prior PURSUE entries."""
-    ideas = _ideas_from_source(anchor_slug=anchor_slug, from_pursues=from_pursues, count=count)
+    runtime_env = dict(load_external_provider_env())
+    ideas = _ideas_from_source(
+        anchor_slug=anchor_slug,
+        from_pursues=from_pursues,
+        count=count,
+        env=runtime_env,
+        provider=provider,
+        model=model,
+        profile_override=profile_override,
+    )
     click.echo(json.dumps({"ideas": ideas}, indent=2))
 
 

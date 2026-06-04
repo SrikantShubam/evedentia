@@ -170,6 +170,10 @@ class Provenance(Enum):
     SEED = "seed"
     REENTRY = "reentry"
     VERIFIED = "verified"
+    CITED_EVIDENCE = "cited_evidence"
+    LLM_INFERENCE = "llm_inference"
+    LLM_EDUCATED_GUESS = "llm_educated_guess"
+    UNKNOWN = "unknown"
 
 
 @dataclass

@@ -17,6 +17,6 @@ def test_multi_source_fixture_scan_aggregates_and_dedupes_sources():
 
 
 def test_live_scanners_registry_is_complete_and_callable():
-    assert set(LIVE_SCANNERS.keys()) == {"hn", "reddit", "github"}
+    assert set(LIVE_SCANNERS.keys()) == {"hn", "reddit", "github", "web_search"}
     for source, fn in LIVE_SCANNERS.items():
         assert callable(fn), f"LIVE_SCANNERS['{source}'] is not callable - got {fn!r}"

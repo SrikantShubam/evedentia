@@ -35,6 +35,7 @@ def _idea(
         pain_hypothesis=pain,
         kill_condition=KillCondition(description="No market", gate_name="parent_market_exists"),
         evidence_ids=["sig-1", "sig-2", "sig-3", "sig-4"],
+        evidence_provenance={"sig-1": "verified", "sig-2": "verified", "sig-3": "verified", "sig-4": "verified"},
         search_queries=queries or ["agency onboarding complaints", "agency onboarding budget"],
         origin="manual",
         gate_profile=profile,
