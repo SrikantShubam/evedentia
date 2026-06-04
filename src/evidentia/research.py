@@ -59,30 +59,46 @@ def research_market(
     search_provider = choose_search_provider(runtime_env)
 
     # -- Step 1: Competitor discovery ----------------------------------
-    competitor_names: list[str] = []
-    for search_q in [f"{query} app", f"{query} alternative"]:
-        try:
-            for hit in search_provider.search(search_q, max_results=10):
-                name = hit.title.split(" - ")[0].split(" | ")[0].strip()
-                if name and name.lower() not in {n.lower() for n in competitor_names}:
-                    competitor_names.append(name)
-        except Exception:
-            continue
-
+    # Primary: search iTunes directly for apps matching the query
     competitors: list[tuple[str, int | None]] = []
     seen_ids: set[int] = set()
-    for name in competitor_names:
-        if len(competitors) >= max_competitors:
-            break
-        try:
-            app_id = _lookup_app_id(name)
-            if app_id is not None and app_id not in seen_ids:
+    try:
+        from evidentia.providers import _http_json
+        from urllib.parse import quote_plus
+        payload = _http_json(
+            f"https://itunes.apple.com/search?term={quote_plus(query)}&entity=software&limit={max_competitors * 2}",
+            method="GET",
+        )
+        for result in (payload.get("results") or [])[: max_competitors * 2]:
+            name = str(result.get("trackName", "")).strip()
+            app_id = result.get("trackId")
+            if name and app_id and app_id not in seen_ids:
                 seen_ids.add(app_id)
-                competitors.append((name, app_id))
-            elif app_id is None:
-                competitors.append((name, None))
-        except Exception:
-            competitors.append((name, None))
+                competitors.append((name, int(app_id)))
+    except Exception:
+        pass
+
+    # Secondary: supplement with web search for apps not on App Store
+    if len(competitors) < max_competitors:
+        for search_q in [f"{query} app store", f"{query} ios app"]:
+            try:
+                for hit in search_provider.search(search_q, max_results=5):
+                    name = hit.title.split(" - ")[0].split(" | ")[0].split(":")[0].strip()
+                    # Skip obvious non-app results
+                    if len(name) < 3 or len(name) > 80:
+                        continue
+                    if any(skip in name.lower() for skip in ("best ", "top ", "review", "guide", "how to", "202")):
+                        continue
+                    if name.lower() not in {c[0].lower() for c in competitors}:
+                        try:
+                            app_id = _lookup_app_id(name)
+                            if app_id and app_id not in seen_ids:
+                                seen_ids.add(app_id)
+                                competitors.append((name, app_id))
+                        except Exception:
+                            pass
+            except Exception:
+                continue
 
     if not competitors:
         return ResearchReport(

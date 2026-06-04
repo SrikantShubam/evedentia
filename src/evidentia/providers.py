@@ -317,34 +317,40 @@ class DuckDuckGoWebSearchProvider(SearchProvider):
 
 
 class FallbackSearchProvider(SearchProvider):
-    """Composite provider that tries SearXNG first, falls back to DuckDuckGo.
-    
-    SearXNG is always the primary attempt (defaults to localhost:8888).
-    If SearXNG is unreachable or returns errors, DuckDuckGo is used as fallback.
-    The SEARXNG_URL env var can override the default SearXNG address.
+    """Composite provider: SearXNG → Tavily → DuckDuckGo.
+
+    Primary: SearXNG (localhost:8888, override via SEARXNG_URL).
+    Secondary: Tavily (if TAVILY_API_KEY is set in env).
+    Tertiary: DuckDuckGo Web Search.
     """
     name = "fallback"
 
     def __init__(self, searxng_url: str | None = None, timeout: int = 15):
         import os
-        self._primary = SearXNGSearchProvider(
-            base_url=searxng_url or os.environ.get("SEARXNG_URL", "http://127.0.0.1:8888"),
-            timeout=timeout,
+        self._providers: list[SearchProvider] = []
+        self._providers.append(
+            SearXNGSearchProvider(
+                base_url=searxng_url or os.environ.get("SEARXNG_URL", "http://127.0.0.1:8888"),
+                timeout=timeout,
+            )
         )
-        self._fallback = DuckDuckGoWebSearchProvider()
+        if os.environ.get("TAVILY_API_KEY"):
+            self._providers.append(TavilySearchProvider(os.environ["TAVILY_API_KEY"]))
+        self._providers.append(DuckDuckGoWebSearchProvider())
 
     def search(self, query: str, max_results: int = 5) -> list[SearchHit]:
-        try:
-            return self._primary.search(query, max_results=max_results)
-        except ProviderError:
-            pass
-        try:
-            return self._fallback.search(query, max_results=max_results)
-        except ProviderError:
-            raise ProviderError(
-                f"All search providers failed for query='{query}': "
-                f"SearXNG and DuckDuckGo both unreachable"
-            )
+        errors: list[str] = []
+        for provider in self._providers:
+            try:
+                results = provider.search(query, max_results=max_results)
+                if results:
+                    return results
+                errors.append(f"{provider.name}: empty results")
+            except ProviderError as e:
+                errors.append(f"{provider.name}: {e}")
+        raise ProviderError(
+            f"All search providers failed for query='{query}': {'; '.join(errors)}"
+        )
 
 
 def choose_search_provider(env: dict[str, str] | None = None) -> SearchProvider:
