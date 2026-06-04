@@ -11,6 +11,7 @@ from evidentia.clusterer import cluster_signals
 from evidentia.classifier import classify_candidate
 from evidentia.critic import critique_slice
 from evidentia.generator import generate_ideas_from_anchor, generate_ideas_from_pursue
+from evidentia.interrogate import interrogate
 from evidentia.models import Anchor, DemandSignal, Idea, PlayerProfile
 from evidentia.outputs import (
     append_to_index,
@@ -1328,6 +1329,58 @@ def edge_research(query: str, output_path: str | None, max_competitors: int) -> 
         click.echo(str(out).replace("\\", "/"))
     else:
         click.echo(json.dumps(payload, indent=2))
+
+
+@edge_group.command("interrogate")
+@click.argument("artifact_path", type=click.Path(exists=True, dir_okay=False))
+@click.argument("question", type=str)
+def edge_interrogate(artifact_path: str, question: str) -> None:
+    """Query a research report or tournament result.
+
+    Example: edge interrogate outputs/tournament.json "why did idea #3 die?"
+    """
+    answer = interrogate(artifact_path, question)
+    click.echo(answer)
+
+
+@edge_group.command("bridge")
+@click.argument("research_json", type=click.Path(exists=True, dir_okay=False))
+@click.option("--output", "output_path", required=True, type=click.Path(dir_okay=False))
+def edge_bridge(research_json: str, output_path: str) -> None:
+    """Convert research report opportunities into ideas for validation.
+
+    Reads a research report JSON and writes an ideas JSONL file
+    suitable for edge validate run --ideas.
+    """
+    data = json.loads(Path(research_json).read_text(encoding="utf-8"))
+    opportunities = data.get("top_opportunities", [])
+    if not opportunities:
+        raise click.ClickException("research report has no top_opportunities")
+
+    ideas: list[dict] = []
+    for i, opp in enumerate(opportunities):
+        ideas.append({
+            "id": f"research-{i}",
+            "label": opp["gap_description"],
+            "anchor_slug": data.get("query", "research"),
+            "incumbent": None,
+            "cohort": "identified from research",
+            "pain_hypothesis": opp["gap_description"],
+            "kill_condition": {"description": "No market evidence", "gate_name": "parent_market_exists"},
+            "gate_profile": "consumer_app",
+            "gate_profile_source": "explicit",
+            "evidence_ids": [f"research-{i}-{j}" for j in range(opp.get("evidence_count", 1))],
+            "search_queries": [f"{data.get('query', '')} {opp.get('gap_description', '')}"[:200]],
+            "origin": "research_bridge",
+            "parent_idea_id": None,
+        })
+
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8") as f:
+        for idea in ideas:
+            f.write(json.dumps(idea) + "\n")
+    click.echo(f"{len(ideas)} ideas written to {output_path}")
 
 
 if __name__ == "__main__":
