@@ -361,3 +361,65 @@ class TournamentResult:
         d["ideas"] = [s.to_dict() for s in self.ideas]
         d["memo"] = self.memo.to_dict() if self.memo else None
         return d
+
+
+@dataclass
+class Review:
+    """A single user review from any source (App Store, Reddit, GitHub)."""
+    text: str
+    rating: int
+    source: str  # "app_store" | "reddit" | "github" | "search"
+    version: str | None = None
+    date: str | None = None
+    country: str | None = None
+    authenticity: str = "AUTHENTIC"  # AUTHENTIC | SUSPICIOUS | UNKNOWN
+
+
+@dataclass
+class ClassifiedComplaint:
+    """A complaint extracted from a review, with type and severity."""
+    review_text: str
+    complaint_type: str  # BUG | UX | PRICING | MISSING_FEATURE | SUPPORT | PERFORMANCE | CONTENT_QUALITY | OTHER
+    severity: int  # 1-10
+    confidence: float  # 0.0-1.0
+
+
+@dataclass
+class BarrierHypothesis:
+    """LLM-generated hypothesis about why a market gap hasn't been filled."""
+    description: str
+    barrier_type: str  # regulation | economics | network_effects | technical | market_size | other
+    confidence: float
+    provenance: str = "LLM_EDUCATED_GUESS"
+
+
+@dataclass
+class OpportunityGap:
+    """A specific market opportunity identified from complaint analysis."""
+    gap_description: str
+    evidence_count: int
+    severity: str  # HIGH | MEDIUM | LOW
+    exploitability: str  # HIGH | MEDIUM | LOW
+
+
+@dataclass
+class ResearchReport:
+    """Complete research report for a market query."""
+    query: str
+    competitors_analyzed: list[str]
+    total_reviews: int
+    complaints: list[ClassifiedComplaint]
+    barrier_hypotheses: list[BarrierHypothesis]
+    top_opportunities: list[OpportunityGap]
+    provenance_summary: str
+
+    def to_dict(self) -> dict:
+        return {
+            "query": self.query,
+            "competitors_analyzed": self.competitors_analyzed,
+            "total_reviews": self.total_reviews,
+            "complaints": [{"review_text": c.review_text, "complaint_type": c.complaint_type, "severity": c.severity, "confidence": c.confidence} for c in self.complaints],
+            "barrier_hypotheses": [{"description": h.description, "barrier_type": h.barrier_type, "confidence": h.confidence, "provenance": h.provenance} for h in self.barrier_hypotheses],
+            "top_opportunities": [{"gap_description": g.gap_description, "evidence_count": g.evidence_count, "severity": g.severity, "exploitability": g.exploitability} for g in self.top_opportunities],
+            "provenance_summary": self.provenance_summary,
+        }

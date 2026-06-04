@@ -20,6 +20,7 @@ from evidentia.outputs import (
     write_run,
 )
 from evidentia.providers import ProviderError, load_external_provider_env
+from evidentia.research import research_market
 from evidentia.scanners import FIXTURE_SCANNERS
 from evidentia.scanners.github import scan_github_live
 from evidentia.scanners.hn import scan_hn_fixture, scan_hn_live
@@ -1309,6 +1310,24 @@ def edge_memo_render(tournament_json: str, output_format: str, output_path: str)
     else:
         out_path.write_text(_memo_to_markdown(memo), encoding="utf-8")
     click.echo(output_path)
+
+
+@edge_group.command("research")
+@click.argument("query", type=str)
+@click.option("--output", "output_path", type=click.Path(dir_okay=False), default=None)
+@click.option("--max-competitors", type=int, default=5, show_default=True)
+def edge_research(query: str, output_path: str | None, max_competitors: int) -> None:
+    """Research a market query: discover competitors, analyze reviews, identify opportunities."""
+    runtime_env = load_external_provider_env()
+    report = research_market(query, env=runtime_env, max_competitors=max_competitors)
+    payload = report.to_dict()
+    if output_path:
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        click.echo(str(out).replace("\\", "/"))
+    else:
+        click.echo(json.dumps(payload, indent=2))
 
 
 if __name__ == "__main__":
