@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { StitchShell } from "@/components/stitch/StitchShell";
-import { Sidebar } from "@/components/stitch/Sidebar";
-import { TopNav } from "@/components/stitch/TopNav";
+import StitchShell from "@/components/stitch/StitchShell";
+import Sidebar from "@/components/stitch/Sidebar";
+import TopNav from "@/components/stitch/TopNav";
 
 export const metadata: Metadata = {
   title: "Evidentia + Domain",
