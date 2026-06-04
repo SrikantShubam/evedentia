@@ -1,8 +1,12 @@
 # Evidentia Architecture
 
-## Current System (May 2026)
+## Current System (June 2026)
 
-Evidentia is an LLM-powered idea tournament engine with a FastAPI backend and Next.js glassmorphism dashboard. Ideas are harvested from sources, generated from anchors, then prosecuted through hard gates by LLM judges. Results stream via SSE to a poker-board UI. The system replaces the original deterministic CLI pipeline described in IMPLEMENTATION_PLAN.md.
+Evidentia is an LLM-powered idea tournament engine with a FastAPI backend and Next.js glassmorphism dashboard. Ideas are harvested from sources, generated from anchors, then prosecuted through hard gates by LLM judges. Results stream via SSE to a poker-board UI.
+
+**Status: ACTIVE.** Engine gate passed (2/3 markets). All Phases 0-5 complete. API, frontend, and database layers are available for use. CI configured via GitHub Actions.
+
+New in Phase 1-3: `edge research` (competitive intelligence), `edge interrogate` (artifact querying), `edge bridge` (research→validate pipeline).
 
 ## Tech Stack
 

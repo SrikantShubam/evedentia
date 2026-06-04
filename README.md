@@ -91,9 +91,28 @@ python -m pytest tests/ -v -m live
 
 ## Project Status
 
-- Engine core (Phases 0-4): **substantially complete** — models, player profiles, generators, tournament gates, verdicts, decision memos
-- API (Phase 5): **quarantined** — pending engine gate
-- Frontend/cockpit (Phase 6): **quarantined** — pending engine gate
-- Dogfood tuning (Phase 7): **not started**
+- **Engine core (Phases 0-5): COMPLETE** — models, profiles, generators, tournament gates, verdicts, decision memos, research pipeline, interrogator, CI
+- **API + Frontend**: Available — FastAPI backend (`scripts/start_api.py`) and Next.js frontend (`docs/frontend/`) are ready for use
+- **Live Proof**: Engine gate PASSED — 2/3 test markets produce real competitive intelligence reports
+- **CI**: GitHub Actions configured — runs on push/PR to main and feature branches
 
-See `agentdocs/plan.md` for the current status and remaining phases.
+See `agentdocs/plan.md` for the full specification and `agentdocs/spec.md` for detailed system design.
+
+## Quick Commands
+
+```sh
+# Research a market
+python -m evidentia.cli edge research "meditation apps for beginners"
+
+# Generate ideas from an anchor
+python -m evidentia.cli generate --anchor smb-invoicing --count 5
+
+# Run a tournament
+python -m evidentia.cli edge tournament run --ideas ideas.jsonl --player profile.json
+
+# Query results
+python -m evidentia.cli edge interrogate tournament.json "why did idea #3 die?"
+
+# Bridge research to validation
+python -m evidentia.cli edge bridge research.json --output ideas.jsonl
+```
