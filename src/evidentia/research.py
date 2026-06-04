@@ -62,29 +62,43 @@ def research_market(
     # Primary: search iTunes directly for apps matching the query
     competitors: list[tuple[str, int | None]] = []
     seen_ids: set[int] = set()
-    try:
-        from evidentia.providers import _http_json
-        from urllib.parse import quote_plus
-        payload = _http_json(
-            f"https://itunes.apple.com/search?term={quote_plus(query)}&entity=software&limit={max_competitors * 2}",
-            method="GET",
-        )
-        for result in (payload.get("results") or [])[: max_competitors * 2]:
-            name = str(result.get("trackName", "")).strip()
-            app_id = result.get("trackId")
-            if name and app_id and app_id not in seen_ids:
-                seen_ids.add(app_id)
-                competitors.append((name, int(app_id)))
-    except Exception:
-        pass
+    discovery_note: str | None = None
 
-    # Secondary: supplement with web search for apps not on App Store
+    def _itunes_search(term: str) -> None:
+        nonlocal competitors, seen_ids
+        try:
+            from evidentia.providers import _http_json
+            from urllib.parse import quote_plus
+            payload = _http_json(
+                f"https://itunes.apple.com/search?term={quote_plus(term)}&entity=software&limit={max_competitors * 2}",
+                method="GET",
+            )
+            for result in (payload.get("results") or [])[: max_competitors * 2]:
+                name = str(result.get("trackName", "")).strip()
+                app_id = result.get("trackId")
+                if name and app_id and app_id not in seen_ids:
+                    seen_ids.add(app_id)
+                    competitors.append((name, int(app_id)))
+        except Exception:
+            pass
+
+    _itunes_search(query)
+
+    # Fallback: try simplified query (remove qualifiers like "for dogs")
+    if len(competitors) < 2:
+        import re
+        simple = re.sub(r"\b(for|with|using|via|by)\s+\w+", "", query, flags=re.IGNORECASE).strip()
+        if simple and simple != query:
+            _itunes_search(simple)
+            if len(competitors) >= 2:
+                discovery_note = f"No direct competitors found for '{query}'. Showing closest market: '{simple}'."
+
+    # Tertiary: supplement with web search
     if len(competitors) < max_competitors:
         for search_q in [f"{query} app store", f"{query} ios app"]:
             try:
                 for hit in search_provider.search(search_q, max_results=5):
                     name = hit.title.split(" - ")[0].split(" | ")[0].split(":")[0].strip()
-                    # Skip obvious non-app results
                     if len(name) < 3 or len(name) > 80:
                         continue
                     if any(skip in name.lower() for skip in ("best ", "top ", "review", "guide", "how to", "202")):
@@ -162,16 +176,19 @@ def research_market(
             )
         )
 
+    # Derive a readable market label (first 2-3 competitor names = the real market)
+    market_label = ", ".join(c[0].split(":")[0].split(" - ")[0].strip() for c in competitors[:3]) or query
+
     # -- Step 5: Barrier hypotheses via LLM ----------------------------
     barrier_hypotheses: list[BarrierHypothesis] = []
     if complaints:
         top_c = [c.review_text[:200] for c in complaints[:5]]
         prompt = (
-            f"Given these user complaints about {query} apps:\n"
+            f"Given these user complaints about apps in the '{market_label}' space:\n"
             + "\n".join(f"- {t}" for t in top_c)
             + "\n\nWhat structural barriers might prevent these issues from being solved?"
             " Consider regulation, economics, network effects, technical feasibility, market size."
-            " Return JSON: [{description, barrier_type, confidence}]"
+            " Reply with ONLY a JSON array: [{\"description\": \"...\", \"barrier_type\": \"...\", \"confidence\": 0.X}]"
             " where barrier_type is one of: regulation, economics, network_effects, technical, market_size, other."
         )
         try:
@@ -188,7 +205,8 @@ def research_market(
                                         confidence=float(item.get("confidence", 0.5)),
                                     )
                                 )
-                        break
+                        if barrier_hypotheses:
+                            break
                 except Exception:
                     continue
         except Exception:
@@ -209,9 +227,10 @@ def research_market(
             sev = "MEDIUM"
         else:
             sev = "LOW"
+        label = "apps" if "app" in query.lower() else "solutions"
         top_opportunities.append(
             OpportunityGap(
-                gap_description=f"Multiple users report {ctype} issues with existing {query} solutions",
+                gap_description=f"Multiple users report {ctype} issues with existing {market_label} {label}",
                 evidence_count=count,
                 severity=sev,
                 exploitability="MEDIUM",
@@ -220,6 +239,11 @@ def research_market(
     top_opportunities.sort(key=lambda o: o.evidence_count, reverse=True)
 
     # -- Step 7: Assemble report ---------------------------------------
+    provenance = (
+        f"Evidence gathered from {len(competitors)} competitors across App Store and Reddit."
+        + (f" Note: {discovery_note}" if discovery_note else "")
+        + " All claims linked to source reviews."
+    )
     return ResearchReport(
         query=query,
         competitors_analyzed=[c[0] for c in competitors],
@@ -227,8 +251,5 @@ def research_market(
         complaints=complaints,
         barrier_hypotheses=barrier_hypotheses,
         top_opportunities=top_opportunities,
-        provenance_summary=(
-            f"Evidence gathered from {len(competitors)} competitors across "
-            "App Store and Reddit. All claims linked to source reviews."
-        ),
+        provenance_summary=provenance,
     )
