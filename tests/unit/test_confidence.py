@@ -1,3 +1,5 @@
+import pytest
+
 from evidentia.models import GateResult, GateStatus, Idea, IdeaState, KillCondition, RoundOutcome
 from evidentia.tournament.confidence import clamp_confidence, confidence_product, is_rankable
 
@@ -32,7 +34,8 @@ def test_clamp_confidence():
     assert clamp_confidence(1.3) == 0.95
 
 
-def test_confidence_product_uses_passed_completed_gates():
+def test_confidence_product_geometric_mean():
+    """confidence_product returns the geometric mean of passed-completed gate confidences."""
     state = _idea_state_with_results(
         [
             GateResult("parent_market_exists", GateStatus.COMPLETED, RoundOutcome.PASS, [], 0.9, None, 0.0, None),
@@ -40,7 +43,27 @@ def test_confidence_product_uses_passed_completed_gates():
             GateResult("three_first_person_voices", GateStatus.COMPLETED, RoundOutcome.FAIL, [], None, None, 0.0, None),
         ]
     )
-    assert confidence_product(state) == 0.9 * 0.5
+    import math
+    expected = math.sqrt(0.9 * 0.5)
+    assert confidence_product(state) == pytest.approx(expected, rel=1e-9)
+
+
+def test_confidence_product_no_passes_returns_zero():
+    state = _idea_state_with_results(
+        [
+            GateResult("parent_market_exists", GateStatus.COMPLETED, RoundOutcome.FAIL, [], None, None, 0.0, None),
+        ]
+    )
+    assert confidence_product(state) == 0.0
+
+
+def test_confidence_product_single_pass_is_its_own_value():
+    state = _idea_state_with_results(
+        [
+            GateResult("parent_market_exists", GateStatus.COMPLETED, RoundOutcome.PASS, [], 0.9, None, 0.0, None),
+        ]
+    )
+    assert confidence_product(state) == 0.9
 
 
 def test_is_rankable_false_if_required_gate_missing_or_not_completed():

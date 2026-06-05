@@ -412,6 +412,7 @@ class ResearchReport:
     barrier_hypotheses: list[BarrierHypothesis]
     top_opportunities: list[OpportunityGap]
     provenance_summary: str
+    evidence_data: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -422,4 +423,5 @@ class ResearchReport:
             "barrier_hypotheses": [{"description": h.description, "barrier_type": h.barrier_type, "confidence": h.confidence, "provenance": h.provenance} for h in self.barrier_hypotheses],
             "top_opportunities": [{"gap_description": g.gap_description, "evidence_count": g.evidence_count, "severity": g.severity, "exploitability": g.exploitability} for g in self.top_opportunities],
             "provenance_summary": self.provenance_summary,
+            "evidence_data": self.evidence_data,
         }

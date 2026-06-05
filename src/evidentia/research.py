@@ -12,6 +12,7 @@ from evidentia.models import (
     Review,
 )
 from evidentia.providers import (
+    SearchProvider,
     build_llm_provider_chain,
     choose_search_provider,
     load_external_provider_env,
@@ -21,6 +22,67 @@ from evidentia.scanners.reviews import (
     _lookup_app_id,
     _reddit_candidates_for_incumbent,
 )
+
+_APP_KEYWORDS = frozenset([
+    "app", "apps", "ios", "iphone", "ipad", "android", "mobile",
+    "play store", "app store", "macos", "watchos", "tvos",
+])
+
+
+def _is_app_query(query: str) -> bool:
+    """Return True if the query targets a mobile/desktop application market."""
+    q = query.lower()
+    return any(kw in q for kw in _APP_KEYWORDS)
+
+
+def _web_competitors(
+    query: str,
+    search_provider: SearchProvider,
+    max_competitors: int,
+) -> tuple[list[tuple[str, int | None]], str | None]:
+    """Discover competitors via web search (no App Store dependency).
+
+    Returns (competitors, discovery_note) where each competitor has
+    app_id=None (since they aren't App Store entries).
+    """
+    competitors: list[tuple[str, int | None]] = []
+    seen_names: set[str] = set()
+    search_queries = [
+        query,
+        f"{query} market",
+        f"{query} competitors alternatives",
+        f"{query} company",
+        f"{query} startup",
+        f"{query} platform",
+    ]
+    for sq in search_queries:
+        if len(competitors) >= max_competitors * 2:
+            break
+        try:
+            for hit in search_provider.search(sq, max_results=max_competitors * 2):
+                # Try multiple title-splitting strategies to extract entity names
+                name = hit.title.split(" - ")[0].split(" | ")[0].split(":")[0].strip()
+                # Also try splitting on common delimiter patterns
+                for delim in (" — ", " – ", " | ", " :: "):
+                    parts = hit.title.split(delim, 1)
+                    if len(parts) > 1 and len(parts[0]) > 3:
+                        name = parts[0].strip()
+                        break
+                if len(name) < 3 or len(name) > 80:
+                    continue
+                if any(skip in name.lower() for skip in ("best ", "top ", "review", "guide", "how to", "202")):
+                    continue
+                nl = name.lower()
+                if nl not in seen_names:
+                    seen_names.add(nl)
+                    competitors.append((name, None))
+        except Exception:
+            continue
+
+    note: str | None = None
+    if not competitors:
+        note = f"No competitors found via web search for '{query}'."
+    return competitors, note
 
 
 def _tag_authenticity(text: str) -> str:
@@ -59,10 +121,10 @@ def research_market(
     search_provider = choose_search_provider(runtime_env)
 
     # -- Step 1: Competitor discovery ----------------------------------
-    # Primary: search iTunes directly for apps matching the query
     competitors: list[tuple[str, int | None]] = []
     seen_ids: set[int] = set()
     discovery_note: str | None = None
+    is_app = _is_app_query(query)
 
     def _itunes_search(term: str) -> None:
         nonlocal competitors, seen_ids
@@ -82,37 +144,25 @@ def research_market(
         except Exception:
             pass
 
-    _itunes_search(query)
-
-    # Fallback: try simplified query (remove qualifiers like "for dogs")
-    if len(competitors) < 2:
-        import re
-        simple = re.sub(r"\b(for|with|using|via|by)\s+\w+", "", query, flags=re.IGNORECASE).strip()
-        if simple and simple != query:
-            _itunes_search(simple)
-            if len(competitors) >= 2:
-                discovery_note = f"No direct competitors found for '{query}'. Showing closest market: '{simple}'."
-
-    # Tertiary: supplement with web search
-    if len(competitors) < max_competitors:
-        for search_q in [f"{query} app store", f"{query} ios app"]:
-            try:
-                for hit in search_provider.search(search_q, max_results=5):
-                    name = hit.title.split(" - ")[0].split(" | ")[0].split(":")[0].strip()
-                    if len(name) < 3 or len(name) > 80:
-                        continue
-                    if any(skip in name.lower() for skip in ("best ", "top ", "review", "guide", "how to", "202")):
-                        continue
-                    if name.lower() not in {c[0].lower() for c in competitors}:
-                        try:
-                            app_id = _lookup_app_id(name)
-                            if app_id and app_id not in seen_ids:
-                                seen_ids.add(app_id)
-                                competitors.append((name, app_id))
-                        except Exception:
-                            pass
-            except Exception:
-                continue
+    if is_app:
+        _itunes_search(query)
+        if len(competitors) < 2:
+            simple = re.sub(r"\b(for|with|using|via|by)\s+\w+", "", query, flags=re.IGNORECASE).strip()
+            if simple and simple != query:
+                _itunes_search(simple)
+                if len(competitors) >= 2:
+                    discovery_note = f"No direct competitors found for '{query}'. Showing closest market: '{simple}'."
+        if len(competitors) < max_competitors:
+            web_comps, web_note = _web_competitors(query, search_provider, max_competitors)
+            existing = {c[0].lower() for c in competitors}
+            for name, _ in web_comps:
+                if name.lower() not in existing:
+                    competitors.append((name, None))
+                    existing.add(name.lower())
+            if web_note:
+                discovery_note = (discovery_note or "") + " " + web_note
+    else:
+        competitors, discovery_note = _web_competitors(query, search_provider, max_competitors)
 
     if not competitors:
         return ResearchReport(
@@ -125,20 +175,50 @@ def research_market(
             provenance_summary="No competitors discovered during search.",
         )
 
-    # -- Step 2: Review fetching ---------------------------------------
+    # -- Step 2: Review fetching + evidence collection ------------------
     raw_pairs: list[tuple[dict, str]] = []
+    evidences: list[dict] = []
     for comp_name, app_id in competitors:
         if app_id is not None:
             try:
                 for r in _ios_reviews_for_app(comp_name, app_id)[:20]:
                     raw_pairs.append((r, "app_store"))
+                    evidences.append({
+                        "source_url": r.get("source_url", ""),
+                        "verbatim_quote": r.get("quote", ""),
+                        "source_text": r.get("source_text", ""),
+                        "source_kind": "app_store",
+                    })
             except Exception:
                 pass
         try:
             for r in _reddit_candidates_for_incumbent(comp_name, limit=10):
                 raw_pairs.append((r, "reddit"))
+                evidences.append({
+                    "source_url": r.get("source_url", ""),
+                    "verbatim_quote": r.get("quote", ""),
+                    "source_text": r.get("source_text", ""),
+                    "source_kind": "reddit",
+                })
         except Exception:
             pass
+        if app_id is None:
+            try:
+                for hit in search_provider.search(f"{comp_name} review complaint problem", max_results=5):
+                    raw_pairs.append(({
+                        "quote": hit.snippet,
+                        "source_text": hit.snippet,
+                        "source_url": hit.url,
+                        "timestamp": "",
+                    }, "search"))
+                    evidences.append({
+                        "source_url": hit.url,
+                        "verbatim_quote": hit.snippet,
+                        "source_text": hit.snippet,
+                        "source_kind": "web_search",
+                    })
+            except Exception:
+                pass
 
     reviews = [_raw_to_review(r, s) for r, s in raw_pairs]
 
@@ -239,8 +319,14 @@ def research_market(
     top_opportunities.sort(key=lambda o: o.evidence_count, reverse=True)
 
     # -- Step 7: Assemble report ---------------------------------------
+    used_sources = []
+    if is_app:
+        used_sources.append("App Store")
+    used_sources.append("web search")
+    if any(s == "reddit" for _, s in raw_pairs):
+        used_sources.append("Reddit")
     provenance = (
-        f"Evidence gathered from {len(competitors)} competitors across App Store and Reddit."
+        f"Evidence gathered from {len(competitors)} competitors across {' and '.join(used_sources)}."
         + (f" Note: {discovery_note}" if discovery_note else "")
         + " All claims linked to source reviews."
     )
@@ -252,4 +338,5 @@ def research_market(
         barrier_hypotheses=barrier_hypotheses,
         top_opportunities=top_opportunities,
         provenance_summary=provenance,
+        evidence_data=evidences,
     )

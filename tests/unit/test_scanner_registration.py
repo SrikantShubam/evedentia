@@ -54,8 +54,8 @@ def test_choose_search_provider_returns_fallback():
 
 
 def test_fallback_tries_searxng_first():
-    """FallbackSearchProvider tries SearXNG on primary attempt."""
+    """FallbackSearchProvider lists SearXNG as first provider (index 0)."""
     from evidentia.providers import FallbackSearchProvider
     provider = FallbackSearchProvider(searxng_url="http://127.0.0.1:8888")
-    assert provider._primary.name == "searxng"
-    assert provider._fallback.name == "duckduckgo_web"
+    assert provider._providers[0].name == "searxng"
+    assert any(p.name == "duckduckgo_web" for p in provider._providers)
