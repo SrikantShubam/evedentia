@@ -13,6 +13,28 @@ as exposed. Rotate first, then delete the abandoned trees.
 4. Delete `../kimi/` and `../codex/` entirely (after archiving anything wanted).
 5. Confirm nothing else holds keys: search the outer folder for `API_KEY=` with a value.
 
+## Probe results (2026-07-19, real API calls)
+
+| Key | Status |
+| --- | --- |
+| GROQ_API_KEY | WORKS (primary LLM, `openai/gpt-oss-20b`) |
+| OPENROUTER_API_KEY | WORKS (fallback; model updated to `poolside/laguna-xs-2.1:free` — old `llama-3.3-70b-instruct:free` was delisted, caused 404) |
+| TAVILY_API_KEY | WORKS (search fallback behind keyless DuckDuckGo) |
+| NVIDIA_API_KEY | DEAD (request timeout on two models; removed from LLM_FALLBACK_CHAIN) |
+| All other keys in .env | EMPTY placeholders |
+
+Routing in `.env` now pins the working set: `LLM_PROVIDER=groq`,
+`LLM_FALLBACK_CHAIN=groq,openrouter`, `SEARCH_FALLBACK_CHAIN=duckduckgo,tavily`.
+Working keys are still exposed-by-copy — rotation below remains necessary.
+
+## GOTCHA before deleting kimi/ and codex/
+
+`providers.py::load_external_provider_env()` reads `../codex/.env` and
+`../kimi/.env` as fallback key sources (and `load_kimi_golden_cases()` reads
+`../kimi/tests/golden_dataset.json`). Before deleting those trees, confirm
+`main/.env` is complete and remove those fallback paths from `providers.py`
+(copy the golden dataset into `main/tests/fixtures/` if still wanted).
+
 ## Keys to rotate (from .env.example)
 
 | Env var | Rotate at |
