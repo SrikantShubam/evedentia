@@ -92,8 +92,13 @@ def test_contains_any_word_boundary_does_not_match_substring():
     assert _contains_any("budget is tight", ["pay", "price", "budget"]) is True
 
 
-def test_three_first_person_voices_accepts_cited_evidence():
-    """cited_evidence (from web search) should count as first-person voice."""
+def test_three_first_person_voices_rejects_cited_evidence():
+    """cited_evidence (web-search snippets) is NOT a first-person voice.
+
+    The 2026-07-19 live proof showed listicle marketing copy flowing in as
+    cited_evidence; counting it as a human voice voids the anti-hallucination
+    contract (docs/LIVE_PROOF_FINDINGS.md). Only verified/seed/reentry count.
+    """
     idea = Idea(
         id="idea-cite",
         label="Tool",
@@ -110,7 +115,7 @@ def test_three_first_person_voices_accepts_cited_evidence():
         gate_profile_source="explicit",
     )
     result = evaluate_gate("three_first_person_voices", idea, _player())
-    assert result.passed is True
+    assert result.passed is False
 
 
 def test_three_first_person_voices_rejects_synthetic():

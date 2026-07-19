@@ -45,6 +45,32 @@ def _idea_blob(idea: Idea) -> str:
     ).lower()
 
 
+def _evidence_blob(idea: Idea) -> str:
+    """Verbatim evidence quotes — the real user language behind the idea.
+
+    Positive-signal gates (spend, retention) scan this in addition to the
+    idea's self-description, so verdicts respond to evidence rather than to
+    whatever vocabulary the idea generator happened to use. Negative gates
+    (saturation, ownership) must NOT scan it: a review complaining about
+    "the market leader" says nothing about the idea itself.
+    """
+    return " ".join(idea.evidence_texts.values()).lower()
+
+
+# How real users talk about money and recurring use. Whole-word matched.
+SPEND_SIGNAL_TERMS = [
+    "pay", "pays", "paid", "paying", "price", "prices", "pricing", "priced",
+    "budget", "subscription", "subscribe", "subscribed", "charge", "charged",
+    "charges", "refund", "billing", "billed", "invoice", "invoicing",
+    "cost", "costs", "expensive", "fee", "fees",
+]
+RETENTION_SIGNAL_TERMS = [
+    "repeat", "monthly", "weekly", "recurring", "switch", "switched",
+    "switching", "referral", "retention", "renew", "renewal", "resubscribe",
+    "cancel", "cancelled", "canceled", "subscription", "daily",
+]
+
+
 def evaluate_gate(gate_name: str, idea: Idea, player: PlayerProfile) -> GateEvaluation:
     text_blob = _idea_blob(idea)
     evidence_count = len(idea.evidence_ids)
@@ -101,7 +127,8 @@ def evaluate_gate(gate_name: str, idea: Idea, player: PlayerProfile) -> GateEval
             rationale="query_presence",
         )
     if gate_name in {"retention_plausible", "switching_cost_defensible", "referral_dynamics"}:
-        passed = _contains_any(text_blob, ["repeat", "monthly", "recurring", "switch", "referral", "retention"])
+        signal_blob = text_blob + " " + _evidence_blob(idea)
+        passed = _contains_any(signal_blob, RETENTION_SIGNAL_TERMS)
         return GateEvaluation(
             passed=passed,
             confidence=gate_confidence_base(gate_name, passed),
@@ -109,7 +136,8 @@ def evaluate_gate(gate_name: str, idea: Idea, player: PlayerProfile) -> GateEval
             rationale="retention_or_switching_signal",
         )
     if gate_name in {"budget_owner_identifiable", "monetization_path_plausible", "willingness_to_pay"}:
-        passed = _contains_any(text_blob, ["pay", "price", "budget", "subscription", "invoice"])
+        signal_blob = text_blob + " " + _evidence_blob(idea)
+        passed = _contains_any(signal_blob, SPEND_SIGNAL_TERMS)
         return GateEvaluation(
             passed=passed,
             confidence=gate_confidence_base(gate_name, passed),

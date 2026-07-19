@@ -464,7 +464,7 @@ def _profile_confidence(gate_profile_source: str) -> float | None:
         return None
 
 
-def _memo_to_markdown(memo: dict) -> str:
+def _memo_to_markdown(memo: dict, states: list[dict] | None = None) -> str:
     lines = [
         "# Decision Memo",
         "",
@@ -502,6 +502,34 @@ def _memo_to_markdown(memo: dict) -> str:
         lines.append("- none")
     if memo.get("zero_winner_diagnosis"):
         lines.extend(["", "## Zero Winner Diagnosis", str(memo["zero_winner_diagnosis"])])
+    if states:
+        lines.extend(["", "## Verdicts"])
+        for state in states:
+            idea = state.get("idea", {}) or {}
+            verdict = state.get("terminal_verdict", "UNKNOWN")
+            confidence = state.get("confidence_score_so_far")
+            failed = [
+                g.get("gate_name")
+                for g in state.get("gate_results", [])
+                if g.get("outcome") == "FAIL"
+            ]
+            conf_txt = f" (confidence {confidence:.2f})" if isinstance(confidence, (int, float)) else ""
+            fail_txt = f" — failed: {', '.join(failed)}" if failed else ""
+            lines.append(f"- **{idea.get('id', '?')}** — {verdict}{conf_txt}{fail_txt}")
+            lines.append(f"  - {str(idea.get('label', ''))[:160]}")
+        lines.extend(["", "## Evidence Appendix"])
+        any_quotes = False
+        for state in states:
+            idea = state.get("idea", {}) or {}
+            texts = idea.get("evidence_texts") or {}
+            if not texts:
+                continue
+            any_quotes = True
+            lines.append(f"### {idea.get('id', '?')}")
+            for eid, quote in list(texts.items())[:3]:
+                lines.append(f"- \"{str(quote)[:280]}\" ({eid})")
+        if not any_quotes:
+            lines.append("- No verbatim evidence attached to any idea.")
     lines.append("")
     return "\n".join(lines)
 
@@ -1348,7 +1376,7 @@ def edge_memo_render(tournament_json: str, output_format: str, output_path: str)
     if output_format == "json":
         _write_json(output_path, memo)
     else:
-        out_path.write_text(_memo_to_markdown(memo), encoding="utf-8")
+        out_path.write_text(_memo_to_markdown(memo, states=payload.get("ideas")), encoding="utf-8")
     click.echo(output_path)
 
 
@@ -1396,33 +1424,58 @@ def edge_bridge(research_json: str, output_path: str, profile_override: str | No
     Evidence provenance is carried forward from collected reviews.
     """
     data = json.loads(Path(research_json).read_text(encoding="utf-8"))
+    ideas = _bridge_research_to_ideas(data, profile_override=profile_override)
+
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8") as f:
+        for idea in ideas:
+            f.write(json.dumps(idea) + "\n")
+    click.echo(f"{len(ideas)} ideas written to {output_path}")
+
+
+def _bridge_research_to_ideas(data: dict, *, profile_override: str | None = None) -> list[dict]:
+    """Convert a research report dict into tournament-ready idea dicts.
+
+    Provenance is carried honestly: app_store/reddit evidence -> "verified"
+    (first-person), web snippets -> "cited_evidence" (never first-person).
+    Verbatim quotes travel with the idea (evidence_texts) so gates can judge
+    real user language. Gate profile prefers what the evidence says over
+    text-blob keyword guessing: majority app_store evidence = consumer_app.
+    """
     opportunities = data.get("top_opportunities", [])
     if not opportunities:
         raise click.ClickException("research report has no top_opportunities")
 
-    # Build evidence map from collected review/evidence data
     evidence_data = data.get("evidence_data", []) or []
-    evidence_ids = set()
     evidence_provenance: dict[str, str] = {}
+    evidence_texts: dict[str, str] = {}
     evidence_by_keyword: dict[str, str] = {}  # keyword token -> first evidence ID
 
+    kind_counts: dict[str, int] = {}
     for ev in evidence_data:
         raw = str(ev.get("verbatim_quote", "") or ev.get("source_text", "") or "")
         url = str(ev.get("source_url", "") or "")
         if raw and url:
             eid = DemandSignal.build_signal_id(url, raw)
-            evidence_ids.add(eid)
             source_kind = str(ev.get("source_kind", "unknown"))
+            kind_counts[source_kind] = kind_counts.get(source_kind, 0) + 1
             evidence_provenance[eid] = "verified" if source_kind in ("app_store", "reddit") else "cited_evidence"
-            # Index keywords from this evidence
+            evidence_texts[eid] = raw
             for token in set(re.findall(r'\w{4,}', raw.lower())):
                 if token not in evidence_by_keyword:
                     evidence_by_keyword[token] = eid
 
-    # Infer gate profile from research data
-    inferred_profile = _infer_gate_profile_from_research(data)
-    resolved_profile = profile_override or inferred_profile
-    gate_profile_source = "explicit" if profile_override else f"inferred:{resolved_profile}"
+    total_evidence = sum(kind_counts.values())
+    if profile_override:
+        resolved_profile = profile_override
+        gate_profile_source = "explicit"
+    elif total_evidence and kind_counts.get("app_store", 0) * 2 > total_evidence:
+        resolved_profile = "consumer_app"
+        gate_profile_source = "inferred:consumer_app"
+    else:
+        resolved_profile = _infer_gate_profile_from_research(data)
+        gate_profile_source = f"inferred:{resolved_profile}"
 
     ideas: list[dict] = []
     for i, opp in enumerate(opportunities):
@@ -1440,29 +1493,32 @@ def edge_bridge(research_json: str, output_path: str, profile_override: str | No
             evidence_provenance[syn_id] = "synthetic"
             matched_ids = [syn_id]
 
+        gap_description = str(opp.get("gap_description", ""))
+        ctype_match = re.search(r"report ([A-Z_]+) issues", gap_description)
+        complaint_type = ctype_match.group(1) if ctype_match else "the reported"
+        kill_condition = {
+            "description": f"{complaint_type} pain is not confirmed by three first-person voices",
+            "gate_name": "three_first_person_voices",
+        }
+
         ideas.append({
             "id": f"research-{i}",
-            "label": opp["gap_description"],
+            "label": gap_description,
             "anchor_slug": data.get("query", "research"),
             "incumbent": None,
             "cohort": "identified from research",
-            "pain_hypothesis": opp["gap_description"],
-            "kill_condition": {"description": "No market evidence", "gate_name": "parent_market_exists"},
+            "pain_hypothesis": gap_description,
+            "kill_condition": kill_condition,
             "gate_profile": resolved_profile,
             "gate_profile_source": gate_profile_source,
             "evidence_ids": matched_ids,
             "evidence_provenance": dict(evidence_provenance),
-            "search_queries": [f"{data.get('query', '')} {opp.get('gap_description', '')}"[:200]],
+            "evidence_texts": {eid: evidence_texts[eid] for eid in matched_ids if eid in evidence_texts},
+            "search_queries": [f"{data.get('query', '')} {gap_description}"[:200]],
             "origin": "research_bridge",
             "parent_idea_id": None,
         })
-
-    out = Path(output_path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open("w", encoding="utf-8") as f:
-        for idea in ideas:
-            f.write(json.dumps(idea) + "\n")
-    click.echo(f"{len(ideas)} ideas written to {output_path}")
+    return ideas
 
 
 def _evidence_id_from_data(evidence: dict) -> str:

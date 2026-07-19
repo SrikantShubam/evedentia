@@ -84,6 +84,34 @@ The App Store review-mining path produces real, quotable, verifiable user
 pain for any app-shaped market. That is the sellable core. The tournament,
 as implemented, subtracts value: it destroys real evidence with fake gates.
 
+## Addendum 2026-07-20 — salvage fixes applied and re-run
+
+Fixes (TDD, suite 242/0 green): FIRST_PERSON_PROVENANCES tightened to
+verified/seed/reentry; Idea carries `evidence_texts` (verbatim quotes);
+spend/retention gates scan real evidence language with an honest lexicon
+(charged/refund/billing/etc.); bridge infers consumer_app from app_store-
+majority evidence and writes idea-specific kill conditions; memo renders
+per-idea verdicts + evidence appendix.
+
+Re-run of all 3 markets, same inputs:
+
+| Market | Before | After |
+| --- | --- | --- |
+| Meditation (93 real reviews) | 4× KILL (vocab accident) | 4× PURSUE_SPIKE, consumer_app |
+| SMB invoicing (snippets) | 2× KILL (vocab accident) | 2× INSUFFICIENT_EVIDENCE @ three_first_person_voices |
+| Resume (snippets) | 3× KILL (vocab accident) | 3× INSUFFICIENT_EVIDENCE @ three_first_person_voices |
+
+The engine now discriminates by evidence quality — real first-person markets
+advance, snippet-only markets are correctly diagnosed as evidence-starved.
+
+Known remaining gaps (not yet fixed):
+- Within-market ranking is non-discriminating: all meditation ideas share
+  confidence 0.907; winner selection is effectively input-order.
+- Bridge evidence matching is keyword-first-hit: every idea in a market
+  cites the same evidence set instead of its own complaint cluster.
+- Gates remain lexicon checks — better than self-description matching, but
+  still not judgment.
+
 ## Implications for the commercial plan
 
 The "$149 validation memo" cannot ship on this pipeline. Before any pitch:

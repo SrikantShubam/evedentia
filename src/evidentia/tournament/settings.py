@@ -44,13 +44,12 @@ def gate_confidence_base(gate_name: str, passed: bool) -> float:
 
 
 # Evidence provenance values that count as "first-person voice" for
-# the three_first_person_voices gate.  Add new non-synthetic provenance
-# strings here when the evidence pipeline introduces them.
+# the three_first_person_voices gate. Only provenances backed by an
+# actual human speaking in first person qualify: web-search snippets
+# ("cited_evidence") and LLM output must never count, or the
+# anti-hallucination contract is void (see docs/LIVE_PROOF_FINDINGS.md).
 FIRST_PERSON_PROVENANCES: frozenset[str] = frozenset({
     "verified",
-    "cited_evidence",
     "seed",
     "reentry",
-    "llm_inference",
-    "llm_educated_guess",
 })

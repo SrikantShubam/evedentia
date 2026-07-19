@@ -91,7 +91,10 @@ def test_acceptance_no_spend_zero_winner_diagnosis_mentions_wtp():
                 ),
                 _idea(
                     "i-nospend-2",
-                    pain="Repeated retention pain with workflow friction and no billing ownership.",
+                    # No spend vocabulary anywhere ("billing" now counts as a
+                    # spend term, so the fixture must avoid it to test the
+                    # no-spend path).
+                    pain="Repeated retention pain with workflow friction and no clear owner.",
                     queries=["onboarding friction examples", "retention workflow blockers"],
                 ),
         ],

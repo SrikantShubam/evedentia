@@ -202,6 +202,9 @@ class Idea:
     gate_profile_source: str
     parent_idea_id: str | None = None
     evidence_provenance: dict[str, str] = field(default_factory=dict)
+    # evidence_id -> verbatim quote; lets gates judge real user language
+    # instead of the idea's own self-description.
+    evidence_texts: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.id.strip():
