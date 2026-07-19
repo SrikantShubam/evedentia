@@ -3,6 +3,8 @@ from urllib.parse import urlencode
 
 from evidentia.providers import _http_json
 
+_MIN_BODY_CHARS = 40
+
 
 def scan_github_fixture(path: str) -> list[dict]:
     with open(path, "r", encoding="utf-8") as fh:
@@ -30,16 +32,23 @@ def scan_github_fixture(path: str) -> list[dict]:
 
 def scan_github_live(query: str, max_results: int = 3, fetch_json=None) -> list[dict]:
     resolved_fetch = fetch_json or _http_json
-    query_string = urlencode({"q": query, "per_page": max_results})
+    query_string = urlencode({"q": f"{query} label:enhancement", "per_page": max_results})
     url = f"https://api.github.com/search/issues?{query_string}"
     payload = resolved_fetch(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "Evidentia/1.0"})
     items = payload.get("items") or []
     normalized: list[dict] = []
-    for item in items[:max_results]:
+    for item in items:
+        if len(normalized) >= max_results:
+            break
         html_url = item.get("html_url")
         if not html_url:
             continue
-        source_text = str(item.get("body") or item.get("title") or "")
+        title = str(item.get("title") or "")
+        body = str(item.get("body") or "").strip()
+        # Title-echo or near-empty bodies carry no usable demand evidence.
+        if len(body) < _MIN_BODY_CHARS or body == title.strip():
+            continue
+        source_text = body
         normalized.append(
             {
                 "source": "github",

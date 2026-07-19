@@ -35,6 +35,7 @@ def _idea(
         pain_hypothesis=pain,
         kill_condition=KillCondition(description="No market", gate_name="parent_market_exists"),
         evidence_ids=["sig-1", "sig-2", "sig-3", "sig-4"],
+        evidence_provenance={"sig-1": "verified", "sig-2": "verified", "sig-3": "verified", "sig-4": "verified"},
         search_queries=queries or ["agency onboarding complaints", "agency onboarding budget"],
         origin="manual",
         gate_profile=profile,
@@ -90,7 +91,10 @@ def test_acceptance_no_spend_zero_winner_diagnosis_mentions_wtp():
                 ),
                 _idea(
                     "i-nospend-2",
-                    pain="Repeated retention pain with workflow friction and no billing ownership.",
+                    # No spend vocabulary anywhere ("billing" now counts as a
+                    # spend term, so the fixture must avoid it to test the
+                    # no-spend path).
+                    pain="Repeated retention pain with workflow friction and no clear owner.",
                     queries=["onboarding friction examples", "retention workflow blockers"],
                 ),
         ],

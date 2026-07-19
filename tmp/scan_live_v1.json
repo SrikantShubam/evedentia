@@ -1,0 +1,330 @@
+{
+  "opportunities": [
+    {
+      "opportunity_id": "opp_001",
+      "title": "Show HN: Bitterbot \u2013 A local-first P2P agent mesh with skill trading",
+      "cluster_id": "hn:47766676",
+      "verified_signals": [
+        {
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=47766676",
+          "verbatim_quote": "We built this because we were tired of centralized agent frameworks that essentially act as expensive API wrappers.<p>The Tech:\nIt\u2019s a local-first mesh using libp2p. Instead of just passing text, agents trade \"skills\" over a p2p network. This means the mesh is sovereign...it doesn't rely on a central server to function or mediate agent communication.<p>This is where it gets exciting:<p>We have 300+ nodes live and just cleared a 10/10 security audit for the generated code. We\u2019re currently at 460 stars and 89 forks, but we\u2019ve reached a point where we need more eyes on the scaling logic. We want to know: how does this P2P mesh actually hold up when we push to 1,000+ nodes?<p>No cloud required. Everything stays on your hardware.<p>We\u2019re looking for deep technical feedback on the mesh stability and the skill-discovery protocol.<p>Victor Michael Gil (Founder and chief engineer) and I will be around all day to answer questions!",
+          "published_at": "2026-04-14T15:10:54Z"
+        }
+      ],
+      "willingness_to_pay": "fail",
+      "distribution_channel": "pass",
+      "data_feasibility": "fail",
+      "competition_gap": 0.7,
+      "buildability": 0.9,
+      "reachability_strength": 0.8,
+      "published_at": "2026-04-14T15:10:54Z",
+      "observed_fields": {
+        "source": "hn",
+        "source_url": "https://news.ycombinator.com/item?id=47766676",
+        "verbatim_quote": "We built this because we were tired of centralized agent frameworks that essentially act as expensive API wrappers.<p>The Tech:\nIt\u2019s a local-first mesh using libp2p. Instead of just passing text, agents trade \"skills\" over a p2p network. This means the mesh is sovereign...it doesn't rely on a central server to function or mediate agent communication.<p>This is where it gets exciting:<p>We have 300+ nodes live and just cleared a 10/10 security audit for the generated code. We\u2019re currently at 460 stars and 89 forks, but we\u2019ve reached a point where we need more eyes on the scaling logic. We want to know: how does this P2P mesh actually hold up when we push to 1,000+ nodes?<p>No cloud required. Everything stays on your hardware.<p>We\u2019re looking for deep technical feedback on the mesh stability and the skill-discovery protocol.<p>Victor Michael Gil (Founder and chief engineer) and I will be around all day to answer questions!",
+        "published_at": "2026-04-14T15:10:54Z"
+      },
+      "inferred_fields": {
+        "signal_type": "builder_announcement",
+        "actor_type": "builder",
+        "willingness_to_pay": "fail",
+        "distribution_channel": "pass",
+        "data_feasibility": "fail",
+        "competition_gap": 0.7,
+        "buildability": 0.9,
+        "reachability_strength": 0.8
+      },
+      "verdict": "HOLD",
+      "gate_verdict": "HOLD",
+      "qualification_state": "DISCOVER",
+      "gate_failures": [
+        "willingness_to_pay",
+        "data_feasibility"
+      ],
+      "gate_rationale": {
+        "willingness_to_pay": {
+          "status": "fail",
+          "basis": "inferred",
+          "reason": "willingness_to_pay evidence is incomplete or absent.",
+          "supporting_signal_ids": [],
+          "missing_for_pass": [
+            "explicit budget owner",
+            "clear replacement-spend intent"
+          ]
+        },
+        "distribution_channel": {
+          "status": "pass",
+          "basis": "observed",
+          "reason": "distribution_channel evidence is adequate for the current record.",
+          "supporting_signal_ids": [
+            "https://news.ycombinator.com/item?id=47766676"
+          ],
+          "missing_for_pass": []
+        },
+        "data_feasibility": {
+          "status": "fail",
+          "basis": "inferred",
+          "reason": "data_feasibility evidence is incomplete or absent.",
+          "supporting_signal_ids": [],
+          "missing_for_pass": [
+            "obtainable source data",
+            "viable wedge workflow inputs"
+          ]
+        }
+      },
+      "missing_evidence": [
+        "clear replacement-spend intent",
+        "explicit budget owner",
+        "obtainable source data",
+        "viable wedge workflow inputs"
+      ],
+      "next_action": "qualify_manually",
+      "heuristic_score": 0.0,
+      "freshness_factor": 0.0,
+      "final_score": 0.0,
+      "score": 0.0,
+      "spec_readiness": {
+        "ready_for_spec": false,
+        "wedge_definition": "Show HN: Bitterbot \u2013 A local-first P2P agent mesh with skill trading",
+        "buyer_definition": null,
+        "workflow_definition": null,
+        "distribution_path": "channel evidence passed hard-gate review",
+        "build_scope": null,
+        "blocked_by": [
+          "qualification_state_not_pursue",
+          "buyer_definition_missing",
+          "workflow_definition_missing",
+          "build_scope_missing"
+        ],
+        "source_trace": [
+          "https://news.ycombinator.com/item?id=47766676"
+        ]
+      }
+    },
+    {
+      "opportunity_id": "opp_002",
+      "title": "Show HN: Is Hormuz open yet?",
+      "cluster_id": "hn:47696562",
+      "verified_signals": [
+        {
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=47696562",
+          "verbatim_quote": "I built this because I was interested in the data. Didn't fully get it to what I wanted, but thought I'd share it nonetheless. Maybe someone has better data sources they could share!<p>Turns out live ship tracking APIs are expensive so I manually just copied the json from <a href=\"https://www.marinetraffic.com/en/ais/home/centerx:57.4/centery:26.4/zoom:8\" rel=\"nofollow\">https://www.marinetraffic.com/en/ais/home/centerx:57.4/cente...</a> I'll probably have an ai agent do the same thing on some cron interval, if this gets any fanfare.<p>To actually know if the port is open without live ship tracking I found <a href=\"https://portwatch.imf.org/pages/cb5856222a5b4105adc6ee7e880a1730\" rel=\"nofollow\">https://portwatch.imf.org/pages/cb5856222a5b4105adc6ee7e880a...</a> which was perfect, except it has 4 day lag!<p>I also thought of adding news feed parsing or prediction market data to get a more definitive answer on if it's open right when you load it, but I spent a few hours and am gonna move on for now.",
+          "published_at": "2026-04-08T21:33:06Z"
+        }
+      ],
+      "willingness_to_pay": "fail",
+      "distribution_channel": "fail",
+      "data_feasibility": "pass",
+      "competition_gap": 0.4,
+      "buildability": 0.6,
+      "reachability_strength": 0.3,
+      "published_at": "2026-04-08T21:33:06Z",
+      "observed_fields": {
+        "source": "hn",
+        "source_url": "https://news.ycombinator.com/item?id=47696562",
+        "verbatim_quote": "I built this because I was interested in the data. Didn't fully get it to what I wanted, but thought I'd share it nonetheless. Maybe someone has better data sources they could share!<p>Turns out live ship tracking APIs are expensive so I manually just copied the json from <a href=\"https://www.marinetraffic.com/en/ais/home/centerx:57.4/centery:26.4/zoom:8\" rel=\"nofollow\">https://www.marinetraffic.com/en/ais/home/centerx:57.4/cente...</a> I'll probably have an ai agent do the same thing on some cron interval, if this gets any fanfare.<p>To actually know if the port is open without live ship tracking I found <a href=\"https://portwatch.imf.org/pages/cb5856222a5b4105adc6ee7e880a1730\" rel=\"nofollow\">https://portwatch.imf.org/pages/cb5856222a5b4105adc6ee7e880a...</a> which was perfect, except it has 4 day lag!<p>I also thought of adding news feed parsing or prediction market data to get a more definitive answer on if it's open right when you load it, but I spent a few hours and am gonna move on for now.",
+        "published_at": "2026-04-08T21:33:06Z"
+      },
+      "inferred_fields": {
+        "signal_type": "builder_announcement",
+        "actor_type": "unknown",
+        "willingness_to_pay": "fail",
+        "distribution_channel": "fail",
+        "data_feasibility": "pass",
+        "competition_gap": 0.4,
+        "buildability": 0.6,
+        "reachability_strength": 0.3
+      },
+      "verdict": "HOLD",
+      "gate_verdict": "HOLD",
+      "qualification_state": "DISCOVER",
+      "gate_failures": [
+        "willingness_to_pay",
+        "distribution_channel"
+      ],
+      "gate_rationale": {
+        "willingness_to_pay": {
+          "status": "fail",
+          "basis": "inferred",
+          "reason": "willingness_to_pay evidence is incomplete or absent.",
+          "supporting_signal_ids": [],
+          "missing_for_pass": [
+            "explicit budget owner",
+            "clear replacement-spend intent"
+          ]
+        },
+        "distribution_channel": {
+          "status": "fail",
+          "basis": "inferred",
+          "reason": "distribution_channel evidence is incomplete or absent.",
+          "supporting_signal_ids": [],
+          "missing_for_pass": [
+            "named reachable channel",
+            "repeatable acquisition path"
+          ]
+        },
+        "data_feasibility": {
+          "status": "pass",
+          "basis": "observed",
+          "reason": "data_feasibility evidence is adequate for the current record.",
+          "supporting_signal_ids": [
+            "https://news.ycombinator.com/item?id=47696562"
+          ],
+          "missing_for_pass": []
+        }
+      },
+      "missing_evidence": [
+        "clear replacement-spend intent",
+        "explicit budget owner",
+        "named reachable channel",
+        "repeatable acquisition path"
+      ],
+      "next_action": "qualify_manually",
+      "heuristic_score": 0.0,
+      "freshness_factor": 0.0,
+      "final_score": 0.0,
+      "score": 0.0,
+      "spec_readiness": {
+        "ready_for_spec": false,
+        "wedge_definition": "Show HN: Is Hormuz open yet?",
+        "buyer_definition": null,
+        "workflow_definition": "recurring workflow friction is visible in evidence text",
+        "distribution_path": null,
+        "build_scope": "wedge scope appears feasible from available data",
+        "blocked_by": [
+          "qualification_state_not_pursue",
+          "buyer_definition_missing",
+          "distribution_path_missing"
+        ],
+        "source_trace": [
+          "https://news.ycombinator.com/item?id=47696562"
+        ]
+      }
+    },
+    {
+      "opportunity_id": "opp_003",
+      "title": "Invoice OCR API for Logistics Expense Tracking Automation",
+      "cluster_id": "hn:47362152",
+      "verified_signals": [
+        {
+          "source": "hn",
+          "source_url": "https://news.ycombinator.com/item?id=47362152",
+          "verbatim_quote": "Logistics and transportation companies handle large volumes of invoices for fuel, freight, tolls, and vendor services. Manually recording these expenses can slow down financial tracking and increase the chances of data entry errors. An Invoice OCR API helps automate this process by extracting important information directly from invoice images or PDFs. Using OCR technology, the system can capture details such as invoice numbers, vendor names, dates, line items, and total amounts. This structured data allows businesses to monitor logistics expenses more efficiently, simplify reconciliation, and improve overall financial visibility across transportation operations.",
+          "published_at": "2026-03-13T09:14:35Z"
+        }
+      ],
+      "willingness_to_pay": "fail",
+      "distribution_channel": "fail",
+      "data_feasibility": "fail",
+      "competition_gap": 0.5,
+      "buildability": 0.8,
+      "reachability_strength": 0.4,
+      "published_at": "2026-03-13T09:14:35Z",
+      "observed_fields": {
+        "source": "hn",
+        "source_url": "https://news.ycombinator.com/item?id=47362152",
+        "verbatim_quote": "Logistics and transportation companies handle large volumes of invoices for fuel, freight, tolls, and vendor services. Manually recording these expenses can slow down financial tracking and increase the chances of data entry errors. An Invoice OCR API helps automate this process by extracting important information directly from invoice images or PDFs. Using OCR technology, the system can capture details such as invoice numbers, vendor names, dates, line items, and total amounts. This structured data allows businesses to monitor logistics expenses more efficiently, simplify reconciliation, and improve overall financial visibility across transportation operations.",
+        "published_at": "2026-03-13T09:14:35Z"
+      },
+      "inferred_fields": {
+        "signal_type": "pain_signal",
+        "actor_type": "business_operator",
+        "willingness_to_pay": "fail",
+        "distribution_channel": "fail",
+        "data_feasibility": "fail",
+        "competition_gap": 0.5,
+        "buildability": 0.8,
+        "reachability_strength": 0.4
+      },
+      "verdict": "HOLD",
+      "gate_verdict": "HOLD",
+      "qualification_state": "DISCOVER",
+      "gate_failures": [
+        "willingness_to_pay",
+        "distribution_channel",
+        "data_feasibility"
+      ],
+      "gate_rationale": {
+        "willingness_to_pay": {
+          "status": "fail",
+          "basis": "inferred",
+          "reason": "willingness_to_pay evidence is incomplete or absent.",
+          "supporting_signal_ids": [],
+          "missing_for_pass": [
+            "explicit budget owner",
+            "clear replacement-spend intent"
+          ]
+        },
+        "distribution_channel": {
+          "status": "fail",
+          "basis": "inferred",
+          "reason": "distribution_channel evidence is incomplete or absent.",
+          "supporting_signal_ids": [],
+          "missing_for_pass": [
+            "named reachable channel",
+            "repeatable acquisition path"
+          ]
+        },
+        "data_feasibility": {
+          "status": "fail",
+          "basis": "inferred",
+          "reason": "data_feasibility evidence is incomplete or absent.",
+          "supporting_signal_ids": [],
+          "missing_for_pass": [
+            "obtainable source data",
+            "viable wedge workflow inputs"
+          ]
+        }
+      },
+      "missing_evidence": [
+        "clear replacement-spend intent",
+        "explicit budget owner",
+        "named reachable channel",
+        "obtainable source data",
+        "repeatable acquisition path",
+        "viable wedge workflow inputs"
+      ],
+      "next_action": "qualify_manually",
+      "heuristic_score": 0.0,
+      "freshness_factor": 0.0,
+      "final_score": 0.0,
+      "score": 0.0,
+      "spec_readiness": {
+        "ready_for_spec": false,
+        "wedge_definition": "Invoice OCR API for Logistics Expense Tracking Automation",
+        "buyer_definition": "buyer actor identified in evidence text",
+        "workflow_definition": "recurring workflow friction is visible in evidence text",
+        "distribution_path": null,
+        "build_scope": null,
+        "blocked_by": [
+          "qualification_state_not_pursue",
+          "distribution_path_missing",
+          "build_scope_missing"
+        ],
+        "source_trace": [
+          "https://news.ycombinator.com/item?id=47362152"
+        ]
+      }
+    }
+  ],
+  "discard_log": [],
+  "source_attempts": [
+    {
+      "source": "hn",
+      "status": "ok",
+      "count": 3
+    },
+    {
+      "source": "reddit",
+      "status": "ok",
+      "count": 0
+    },
+    {
+      "source": "github",
+      "status": "ok",
+      "count": 0
+    }
+  ]
+}

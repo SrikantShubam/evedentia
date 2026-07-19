@@ -173,6 +173,41 @@ class TavilySearchProvider(SearchProvider):
         ]
 
 
+class SearXNGSearchProvider(SearchProvider):
+    name = "searxng"
+
+    def __init__(self, base_url: str | None = None, timeout: int = 15):
+        import os
+        self._base_url = (base_url or os.environ.get("SEARXNG_URL", "http://127.0.0.1:8888")).rstrip("/")
+        self._timeout = timeout
+
+    def search(self, query: str, max_results: int = 5) -> list[SearchHit]:
+        if not query or not query.strip():
+            return []
+        from urllib.parse import quote
+        import urllib.request
+        import json as _json
+
+        url = f"{self._base_url}/search?q={quote(query)}&format=json&categories=general&pageno=1"
+        req = urllib.request.Request(url, headers={"User-Agent": "evidentia/0.2"})
+        try:
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+                payload = _json.loads(resp.read().decode("utf-8"))
+        except Exception as exc:
+            raise ProviderError(f"SearXNG search failed for query='{query}': {exc}") from exc
+
+        results = payload.get("results") or []
+        hits = []
+        for item in results[:max_results]:
+            title = str(item.get("title") or "")
+            url = str(item.get("url") or "")
+            content = str(item.get("content") or "")
+            if not url:
+                continue
+            hits.append(SearchHit(title=title, url=url, snippet=content))
+        return hits
+
+
 class LLMProvider:
     name: str = "unknown"
 
@@ -252,19 +287,85 @@ class GroqProvider(LLMProvider):
         return json.loads(data["choices"][0]["message"]["content"])
 
 
-def choose_search_provider(env: dict[str, str]) -> SearchProvider:
-    explicit = str(env.get("SEARCH_PROVIDER") or "auto").strip().lower()
-    if explicit == "auto":
-        if env.get("TAVILY_API_KEY"):
-            return TavilySearchProvider(env["TAVILY_API_KEY"])
-        return DuckDuckGoInstantSearchProvider()
-    if explicit == "tavily":
-        if not env.get("TAVILY_API_KEY"):
-            raise ProviderError("SEARCH_PROVIDER=tavily requires TAVILY_API_KEY.")
-        return TavilySearchProvider(env["TAVILY_API_KEY"])
-    if explicit in {"duckduckgo", "ddg"}:
-        return DuckDuckGoInstantSearchProvider()
-    raise ProviderError(f"Unknown SEARCH_PROVIDER='{explicit}'.")
+class DuckDuckGoWebSearchProvider(SearchProvider):
+    """Web search provider using DuckDuckGo's search results.
+    
+    Uses the ddgs library (DDGS). No API key needed.
+    Falls back to SearXNG if DDGS fails.
+    """
+    name = "duckduckgo_web"
+
+    def search(self, query: str, max_results: int = 5) -> list[SearchHit]:
+        if not query or not query.strip():
+            return []
+        try:
+            try:
+                from ddgs import DDGS
+            except ImportError:
+                from duckduckgo_search import DDGS
+            with DDGS() as ddgs:
+                raw = list(ddgs.text(query, max_results=max_results))
+        except Exception as exc:
+            raise ProviderError(f"DuckDuckGo search failed for query='{query}': {exc}") from exc
+
+        hits = []
+        for item in raw[:max_results]:
+            title = str(item.get("title") or "")
+            url = str(item.get("href") or "")
+            snippet = str(item.get("body") or "")
+            if not url:
+                continue
+            hits.append(SearchHit(title=title, url=url, snippet=snippet))
+        return hits
+
+
+class FallbackSearchProvider(SearchProvider):
+    """Composite provider: SearXNG → Tavily → DuckDuckGo.
+
+    Primary: SearXNG (localhost:8888, override via SEARXNG_URL).
+    Secondary: Tavily (if TAVILY_API_KEY is set in env).
+    Tertiary: DuckDuckGo Web Search.
+    """
+    name = "fallback"
+
+    def __init__(self, searxng_url: str | None = None, timeout: int = 15, env: dict[str, str] | None = None):
+        import os
+        env = env or {}
+        self._providers: list[SearchProvider] = []
+        self._providers.append(
+            SearXNGSearchProvider(
+                base_url=searxng_url or env.get("SEARXNG_URL") or os.environ.get("SEARXNG_URL", "http://127.0.0.1:8888"),
+                timeout=timeout,
+            )
+        )
+        tavily_key = env.get("TAVILY_API_KEY") or os.environ.get("TAVILY_API_KEY")
+        if tavily_key:
+            self._providers.append(TavilySearchProvider(tavily_key))
+        self._providers.append(DuckDuckGoWebSearchProvider())
+
+    def search(self, query: str, max_results: int = 5) -> list[SearchHit]:
+        errors: list[str] = []
+        for provider in self._providers:
+            try:
+                results = provider.search(query, max_results=max_results)
+                if results:
+                    return results
+                errors.append(f"{provider.name}: empty results")
+            except ProviderError as e:
+                errors.append(f"{provider.name}: {e}")
+        raise ProviderError(
+            f"All search providers failed for query='{query}': {'; '.join(errors)}"
+        )
+
+
+def choose_search_provider(env: dict[str, str] | None = None) -> SearchProvider:
+    """Select search provider with automatic fallback.
+    
+    Always tries SearXNG first (localhost:8888 by default, override via SEARXNG_URL).
+    Falls back to DuckDuckGo Web Search if SearXNG is down or rate-limited.
+    """
+    import os
+    return FallbackSearchProvider(searxng_url=os.environ.get("SEARXNG_URL"), env=env)
 
 
 def choose_llm_provider(env: dict[str, str]) -> tuple[LLMProvider, str]:

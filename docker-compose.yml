@@ -1,0 +1,16 @@
+# SearXNG — privacy-respecting search engine for Evidentia's free-tier pipeline.
+# Start: docker compose up -d
+# Verify: curl http://localhost:8888/search?q=test&format=json
+# Stop: docker compose down
+
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: evidentia-searxng
+    ports:
+      - "8888:8080"
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8888/
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml
+    restart: unless-stopped

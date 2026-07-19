@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from evidentia.anchor import load_all_anchors
-from evidentia.cli import _run_hunt
+from evidentia.cli import _run_hunt, run_live_scan
 from evidentia.db import (
     get_player_profile,
     get_tournament_memo,
@@ -20,7 +20,7 @@ from evidentia.db import (
     upsert_player_profile,
 )
 from evidentia.generator import generate_ideas_from_anchor, generate_ideas_from_pursue
-from evidentia.models import Idea, PlayerProfile, TournamentResult
+from evidentia.models import Idea, KillCondition, PlayerProfile, TournamentResult
 from evidentia.tournament.engine import run_tournament
 
 
@@ -48,6 +48,19 @@ class TournamentRequest(BaseModel):
     gate_profile: str | None = None
 
 
+class ValidateRequest(BaseModel):
+    keyword: str
+    opportunity: dict
+    player_id: str = "default"
+    gate_profile: str | None = None
+
+
+class ScanRequest(BaseModel):
+    keyword: str
+    sources: list[str] = Field(default_factory=lambda: ["hn"])
+    max_results: int = 3
+
+
 def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     app = FastAPI(title="Evidentia API", version="0.1.0")
 
@@ -60,6 +73,22 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
     )
 
     init_db(db_path)
+
+    # Seed default player (used by dashboard's hardcoded player_id: "default")
+    try:
+        default_player = PlayerProfile(
+            id="default",
+            team="default",
+            skills=["research"],
+            budget_validate_usd=500,
+            budget_build_usd=2000,
+            budget_reach_usd=300,
+            weeks_to_ship=8,
+            risk="low",
+        )
+        upsert_player_profile(default_player, db_path=db_path, now_utc=_utc_now())
+    except Exception:
+        pass  # already exists or race
 
     @app.post("/player")
     def post_player(payload: dict) -> dict:
@@ -111,6 +140,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
         save_tournament_result(result, db_path=db_path, now_utc=_utc_now())
         return result.to_dict()
 
+    # DEPRECATED: Dashboard now uses inline TournamentPanel. Kept for backward compat.
     @app.get("/tournament/{tournament_id}")
     def get_tournament(tournament_id: str) -> dict:
         payload = get_tournament_payload(tournament_id, db_path=db_path)
@@ -118,6 +148,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="tournament not found")
         return payload
 
+    # DEPRECATED: Dashboard now uses inline TournamentPanel. Kept for backward compat.
     @app.get("/tournament/{tournament_id}/idea/{idea_id}")
     def get_tournament_idea(tournament_id: str, idea_id: str) -> dict:
         payload = get_tournament_payload(tournament_id, db_path=db_path)
@@ -129,6 +160,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
                 return state
         raise HTTPException(status_code=404, detail="idea not found")
 
+    # DEPRECATED: Dashboard now uses inline TournamentPanel. Kept for backward compat.
     @app.get("/tournament/{tournament_id}/memo")
     def get_tournament_memo_route(tournament_id: str) -> dict:
         memo = get_tournament_memo(tournament_id, db_path=db_path)
@@ -136,6 +168,7 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="tournament not found")
         return memo
 
+    # DEPRECATED: Dashboard now uses inline TournamentPanel. Kept for backward compat.
     @app.get("/tournament/{tournament_id}/sse")
     async def tournament_sse(tournament_id: str):
         payload = get_tournament_payload(tournament_id, db_path=db_path)
@@ -149,6 +182,73 @@ def create_app(*, db_path: str | Path | None = None) -> FastAPI:
             yield {"event": "done", "data": {"tournament_id": tournament_id}}
 
         return EventSourceResponse(generator())
+
+    @app.post("/scan")
+    def post_scan(request: ScanRequest) -> dict:
+        if not request.keyword.strip():
+            raise HTTPException(status_code=400, detail="keyword is required")
+        valid_sources = [s for s in request.sources if s in {"hn", "reddit", "github", "web_search"}]
+        if not valid_sources:
+            raise HTTPException(status_code=400, detail="at least one valid source is required (hn, reddit, github, web_search)")
+        try:
+            return run_live_scan(
+                domain=request.keyword.strip(),
+                sources=valid_sources,
+                max_results=request.max_results,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.post("/validate")
+    def post_validate(request: ValidateRequest) -> dict:
+        if not request.keyword.strip():
+            raise HTTPException(status_code=400, detail="keyword is required")
+
+        profile = get_player_profile(request.player_id, db_path=db_path)
+        if profile is None:
+            raise HTTPException(status_code=404, detail="player not found")
+
+        opp = request.opportunity
+        keyword = request.keyword.strip()
+
+        hypothesis = opp.get("hypothesis") or {}
+        signals = opp.get("verified_signals") or []
+        verdict = opp.get("verdict") or "unknown"
+        score = opp.get("final_score") or opp.get("score") or 0
+        gate_failures = opp.get("gate_failures") or []
+
+        idea = Idea(
+            id=opp.get("opportunity_id") or f"opp-{datetime.now(timezone.utc).timestamp()}",
+            label=opp.get("label") or hypothesis.get("headline") or opp.get("title") or keyword,
+            anchor_slug=keyword.lower().replace(" ", "-")[:50],
+            incumbent="unknown",
+            cohort=opp.get("cohort") or hypothesis.get("hypothesis_type") or "unknown",
+            pain_hypothesis=opp.get("pain_hypothesis") or hypothesis.get("wedge_statement") or "No hypothesis recorded",
+            kill_condition=KillCondition(
+                description=f"Scan verdict: {verdict}. Score: {score}",
+                gate_name=gate_failures[0] if gate_failures else "scan_gate",
+            ),
+            evidence_ids=[f"sig-{i+1}" for i in range(len(signals))] or ["sig-1"],
+            search_queries=[keyword],
+            origin="scan",
+            gate_profile=request.gate_profile or "consumer_app",
+            gate_profile_source="inferred:scan",
+        )
+
+        tournament_id = f"scan-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}-{idea.id[:8]}"
+
+        result: TournamentResult = run_tournament(
+            ideas=[idea],
+            player=profile,
+            tournament_id=tournament_id,
+            gate_profile=request.gate_profile,
+        )
+        save_tournament_result(result, db_path=db_path, now_utc=_utc_now())
+        data = result.to_dict()
+        for idea_state in data.get("ideas", []):
+            nested = idea_state.get("idea", {})
+            idea_state["cohort"] = nested.get("cohort")
+        return data
 
     return app
 

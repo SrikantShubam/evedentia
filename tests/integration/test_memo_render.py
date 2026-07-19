@@ -28,6 +28,7 @@ def _idea_dict() -> dict:
         "pain_hypothesis": "Teams are willing to pay monthly to reduce onboarding errors and manual work.",
         "kill_condition": {"description": "No market", "gate_name": "parent_market_exists"},
         "evidence_ids": ["sig-1", "sig-2", "sig-3", "sig-4"],
+        "evidence_provenance": {"sig-1": "verified", "sig-2": "verified", "sig-3": "verified", "sig-4": "verified"},
         "search_queries": ["agency onboarding budget", "agency onboarding complaints"],
         "origin": "manual",
         "gate_profile": "consumer_app",
@@ -78,4 +79,5 @@ def test_edge_memo_render_json_and_md(tmp_path):
     assert md_result.exit_code == 0
     md_text = memo_md_path.read_text(encoding="utf-8")
     assert "Decision Memo" in md_text
-    assert "LLM_GENERATED_TACTICAL_COPY" in md_text
+    assert "i-1" in md_text
+    assert "Missing Evidence" in md_text

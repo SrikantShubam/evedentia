@@ -10,11 +10,22 @@ def clamp_confidence(value: float) -> float:
 
 
 def confidence_product(state: IdeaState) -> float:
+    """Geometric mean of passed-completed gate confidences.
+
+    Using geometric mean instead of raw product ensures that the score
+    stays in a meaningful range regardless of the number of gates.
+    A product of N gate confidences (each ≤ 0.95) decays toward zero,
+    making PURSUE_SPIKE unreachable for profiles with many gates.
+    """
     score = 1.0
+    count = 0
     for gate in state.gate_results:
         if gate.status == GateStatus.COMPLETED and gate.outcome == RoundOutcome.PASS and gate.confidence is not None:
             score *= clamp_confidence(gate.confidence)
-    return score
+            count += 1
+    if count == 0:
+        return 0.0
+    return score ** (1.0 / count)
 
 
 def is_rankable(state: IdeaState) -> bool:

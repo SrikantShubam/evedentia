@@ -19,10 +19,10 @@ def test_load_external_provider_env_reads_codex_and_kimi_keys():
 
 
 def test_choose_llm_provider_uses_external_keys_in_auto_mode():
-    env = load_external_provider_env()
-    sensitive = {"NVIDIA_API_KEY", "OPENROUTER_API_KEY", "GROQ_API_KEY", "TAVILY_API_KEY"}
-    if not sensitive & env.keys():
-        pytest.skip("no external provider keys")
+    # Controlled env: auto mode must prefer NVIDIA when only its key is set.
+    # (Previously read the developer's real .env, which made the assertion
+    # depend on local routing config like LLM_PROVIDER=groq.)
+    env = {"LLM_PROVIDER": "auto", "NVIDIA_API_KEY": "test-key"}
 
     provider, model = choose_llm_provider(env)
 

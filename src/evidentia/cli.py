@@ -11,6 +11,7 @@ from evidentia.clusterer import cluster_signals
 from evidentia.classifier import classify_candidate
 from evidentia.critic import critique_slice
 from evidentia.generator import generate_ideas_from_anchor, generate_ideas_from_pursue
+from evidentia.interrogate import interrogate
 from evidentia.models import Anchor, DemandSignal, Idea, PlayerProfile
 from evidentia.outputs import (
     append_to_index,
@@ -20,6 +21,7 @@ from evidentia.outputs import (
     write_run,
 )
 from evidentia.providers import ProviderError, load_external_provider_env
+from evidentia.research import research_market
 from evidentia.scanners import FIXTURE_SCANNERS
 from evidentia.scanners.github import scan_github_live
 from evidentia.scanners.hn import scan_hn_fixture, scan_hn_live
@@ -181,13 +183,32 @@ def _run_hunt(anchor: Anchor, *, limit: int, dry_run: bool, env: dict[str, str] 
     }
 
 
-def _ideas_from_source(anchor_slug: str | None, from_pursues: bool, count: int) -> list[dict]:
+def _ideas_from_source(
+    anchor_slug: str | None,
+    from_pursues: bool,
+    count: int,
+    env: dict[str, str] | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+    profile_override: str | None = None,
+) -> list[dict]:
     if from_pursues:
         pursues = top_index_ideas(_index_path(), verdict="PURSUE", n=max(20, count * 2))
-        return generate_ideas_from_pursue(pursues, count=count)
+        return generate_ideas_from_pursue(pursues, count=count, env=env, provider=provider, model=model)
     if not anchor_slug:
         raise click.ClickException("--anchor is required unless --from-pursues is used")
-    return generate_ideas_from_anchor(_load_anchor_by_slug(anchor_slug, should_verify=False), count=count)
+    ideas = generate_ideas_from_anchor(
+        _load_anchor_by_slug(anchor_slug, should_verify=False),
+        count=count,
+        env=env,
+        provider=provider,
+        model=model,
+    )
+    if profile_override:
+        for idea in ideas:
+            idea["gate_profile"] = profile_override
+            idea["gate_profile_source"] = "explicit"
+    return ideas
 
 
 def _print_best_table(rows: list[dict]) -> None:
@@ -443,7 +464,7 @@ def _profile_confidence(gate_profile_source: str) -> float | None:
         return None
 
 
-def _memo_to_markdown(memo: dict) -> str:
+def _memo_to_markdown(memo: dict, states: list[dict] | None = None) -> str:
     lines = [
         "# Decision Memo",
         "",
@@ -481,6 +502,34 @@ def _memo_to_markdown(memo: dict) -> str:
         lines.append("- none")
     if memo.get("zero_winner_diagnosis"):
         lines.extend(["", "## Zero Winner Diagnosis", str(memo["zero_winner_diagnosis"])])
+    if states:
+        lines.extend(["", "## Verdicts"])
+        for state in states:
+            idea = state.get("idea", {}) or {}
+            verdict = state.get("terminal_verdict", "UNKNOWN")
+            confidence = state.get("confidence_score_so_far")
+            failed = [
+                g.get("gate_name")
+                for g in state.get("gate_results", [])
+                if g.get("outcome") == "FAIL"
+            ]
+            conf_txt = f" (confidence {confidence:.2f})" if isinstance(confidence, (int, float)) else ""
+            fail_txt = f" — failed: {', '.join(failed)}" if failed else ""
+            lines.append(f"- **{idea.get('id', '?')}** — {verdict}{conf_txt}{fail_txt}")
+            lines.append(f"  - {str(idea.get('label', ''))[:160]}")
+        lines.extend(["", "## Evidence Appendix"])
+        any_quotes = False
+        for state in states:
+            idea = state.get("idea", {}) or {}
+            texts = idea.get("evidence_texts") or {}
+            if not texts:
+                continue
+            any_quotes = True
+            lines.append(f"### {idea.get('id', '?')}")
+            for eid, quote in list(texts.items())[:3]:
+                lines.append(f"- \"{str(quote)[:280]}\" ({eid})")
+        if not any_quotes:
+            lines.append("- No verbatim evidence attached to any idea.")
     lines.append("")
     return "\n".join(lines)
 
@@ -541,11 +590,25 @@ def _infer_actor_type(candidate: dict) -> str:
         str(candidate.get(key, "")).lower()
         for key in ("title", "verbatim_quote", "source_text")
     )
-    if any(token in text_blob for token in ("team", "startup", "business", "company")):
+    if re.search(r'\b(designer|design team|ux|ui designer|product designer)\b', text_blob):
+        return "designer"
+    if re.search(r'\b(consultant|consulting|agency|agency owner)\b', text_blob):
+        return "consultant"
+    if re.search(r'\b(indie|solo|independent|one-person|solopreneur)\b', text_blob):
+        return "indie"
+    if re.search(r'\b(freelancer|freelance|self-employed|gig worker)\b', text_blob):
+        return "freelancer"
+    if re.search(r'\b(founder|co-founder|startup|entrepreneur|cofounder)\b', text_blob):
+        return "founder"
+    if re.search(r'\b(researcher|analyst|data scientist|scientist|researcher)\b', text_blob):
+        return "researcher"
+    if re.search(r'\b(manager|director|vp |head of|c-level|cto|ceo|cfo|coo)\b', text_blob):
+        return "manager"
+    if re.search(r'\b(team|startup|business|company|organization)\b', text_blob):
         return "business_operator"
-    if any(token in text_blob for token in ("developer", "engineer", "maintainer")):
+    if re.search(r'\b(developer|engineer|maintainer|programmer|coder|software engineer)\b', text_blob):
         return "builder"
-    if any(token in text_blob for token in ("freelancer", "creator", "founder")):
+    if re.search(r'\b(freelancer|creator|maker|hobbyist)\b', text_blob):
         return "individual_operator"
     return "unknown"
 
@@ -597,6 +660,13 @@ def _generate_hypothesis(candidate: dict) -> dict:
         "business_operator": "operators",
         "builder": "technical teams",
         "individual_operator": "independent operators",
+        "designer": "design teams",
+        "consultant": "consultants",
+        "indie": "indie makers",
+        "freelancer": "freelancers",
+        "founder": "founders",
+        "researcher": "researchers",
+        "manager": "managers",
         "unknown": "users",
     }[actor_type]
 
@@ -611,6 +681,24 @@ def _generate_hypothesis(candidate: dict) -> dict:
     elif any(pattern.search(text_blob) for pattern in _INCUMBENT_FRICTION_PATTERNS):
         hypothesis_type = "replacement_wedge"
         wedge_statement = f"Build a replacement wedge for {actor_label} around the workflow pain described in '{title}'."
+    elif re.search(r'\b(capability gap|missing feature|wish it had|should add|lacks|doesn\'t have)\b', text_blob):
+        hypothesis_type = "capability_gap"
+        wedge_statement = f"Assess whether {actor_label} would adopt a solution that fills the capability gap in '{title}'."
+    elif re.search(r'\b(expensive|overpriced|too costly|paywall|subscription cost|price hike|pricey)\b', text_blob):
+        hypothesis_type = "pricing_grievance"
+        wedge_statement = f"Test whether {actor_label} would switch to a more affordable alternative given the pricing pain in '{title}'."
+    elif re.search(r'\b(integration|connect with|sync|import from|export to|compatible|api for|doesn\'t integrate)\b', text_blob):
+        hypothesis_type = "integration_need"
+        wedge_statement = f"Validate whether {actor_label} need better integrations around the pain in '{title}'."
+    elif re.search(r'\b(compliance|regulatory|audit|gdpr|hipaa|sox|regulation|legal)\b', text_blob):
+        hypothesis_type = "compliance_pain"
+        wedge_statement = f"Explore whether {actor_label} face compliance-driven workflow pain behind '{title}'."
+    elif re.search(r'\b(scaling|growing pains|can\'t scale|outgrown|too slow for|performance)\b', text_blob):
+        hypothesis_type = "scaling_pain"
+        wedge_statement = f"Investigate whether {actor_label} experience scaling bottlenecks related to '{title}'."
+    elif re.search(r'\b(manual|by hand|time.consuming|repetitive|tedious|automate|automation)\b', text_blob):
+        hypothesis_type = "automation_gap"
+        wedge_statement = f"Determine whether {actor_label} would adopt automation for the manual process in '{title}'."
     else:
         hypothesis_type = "workflow_tool"
         wedge_statement = f"Test whether {actor_label} have repeated workflow pain behind '{title}'."
@@ -873,6 +961,9 @@ def _run_live_source(source: str, domain: str, max_results: int) -> tuple[list[d
         scanner = scan_reddit_live
     elif source == "github":
         scanner = scan_github_live
+    elif source == "web_search":
+        from evidentia.scanners.web_search import scan_web_search_live
+        scanner = scan_web_search_live
     else:
         raise click.ClickException(f"unsupported live source: {source}")
 
@@ -1049,9 +1140,21 @@ def hunt_all_command(limit: int, dry_run: bool) -> None:
 @click.option("--anchor", "anchor_slug", type=str)
 @click.option("--from-pursues", is_flag=True, default=False)
 @click.option("--count", type=int, default=10, show_default=True)
-def generate_command(anchor_slug: str | None, from_pursues: bool, count: int) -> None:
+@click.option("--provider", type=str, default=None, help="LLM provider to use (e.g. openrouter, groq, nvidia)")
+@click.option("--model", type=str, default=None, help="Model name override")
+@click.option("--profile", "profile_override", type=str, default=None, help="Force gate profile (consumer_app, b2b_workflow, etc.)")
+def generate_command(anchor_slug: str | None, from_pursues: bool, count: int, provider: str | None, model: str | None, profile_override: str | None) -> None:
     """Generate niche ideas from one anchor or prior PURSUE entries."""
-    ideas = _ideas_from_source(anchor_slug=anchor_slug, from_pursues=from_pursues, count=count)
+    runtime_env = dict(load_external_provider_env())
+    ideas = _ideas_from_source(
+        anchor_slug=anchor_slug,
+        from_pursues=from_pursues,
+        count=count,
+        env=runtime_env,
+        provider=provider,
+        model=model,
+        profile_override=profile_override,
+    )
     click.echo(json.dumps({"ideas": ideas}, indent=2))
 
 
@@ -1273,8 +1376,198 @@ def edge_memo_render(tournament_json: str, output_format: str, output_path: str)
     if output_format == "json":
         _write_json(output_path, memo)
     else:
-        out_path.write_text(_memo_to_markdown(memo), encoding="utf-8")
+        out_path.write_text(_memo_to_markdown(memo, states=payload.get("ideas")), encoding="utf-8")
     click.echo(output_path)
+
+
+@edge_group.command("research")
+@click.argument("query", type=str)
+@click.option("--output", "output_path", type=click.Path(dir_okay=False), default=None)
+@click.option("--max-competitors", type=int, default=5, show_default=True)
+def edge_research(query: str, output_path: str | None, max_competitors: int) -> None:
+    """Research a market query: discover competitors, analyze reviews, identify opportunities."""
+    runtime_env = load_external_provider_env()
+    report = research_market(query, env=runtime_env, max_competitors=max_competitors)
+    payload = report.to_dict()
+    if output_path:
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        click.echo(str(out).replace("\\", "/"))
+    else:
+        click.echo(json.dumps(payload, indent=2))
+
+
+@edge_group.command("interrogate")
+@click.argument("artifact_path", type=click.Path(exists=True, dir_okay=False))
+@click.argument("question", type=str)
+def edge_interrogate(artifact_path: str, question: str) -> None:
+    """Query a research report or tournament result.
+
+    Example: edge interrogate outputs/tournament.json "why did idea #3 die?"
+    """
+    answer = interrogate(artifact_path, question)
+    click.echo(answer)
+
+
+@edge_group.command("bridge")
+@click.argument("research_json", type=click.Path(exists=True, dir_okay=False))
+@click.option("--output", "output_path", required=True, type=click.Path(dir_okay=False))
+@click.option("--profile", "profile_override", type=click.Choice(["consumer_app", "b2b_workflow", "browser_extension", "agency_service"]), default=None, help="Override automatic gate profile detection")
+def edge_bridge(research_json: str, output_path: str, profile_override: str | None) -> None:
+    """Convert research report opportunities into ideas for validation.
+
+    Reads a research report JSON and writes an ideas JSONL file
+    suitable for edge tournament run --ideas.
+
+    Gate profile is inferred from research data (override with --profile).
+    Evidence provenance is carried forward from collected reviews.
+    """
+    data = json.loads(Path(research_json).read_text(encoding="utf-8"))
+    ideas = _bridge_research_to_ideas(data, profile_override=profile_override)
+
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8") as f:
+        for idea in ideas:
+            f.write(json.dumps(idea) + "\n")
+    click.echo(f"{len(ideas)} ideas written to {output_path}")
+
+
+def _bridge_research_to_ideas(data: dict, *, profile_override: str | None = None) -> list[dict]:
+    """Convert a research report dict into tournament-ready idea dicts.
+
+    Provenance is carried honestly: app_store/reddit evidence -> "verified"
+    (first-person), web snippets -> "cited_evidence" (never first-person).
+    Verbatim quotes travel with the idea (evidence_texts) so gates can judge
+    real user language. Gate profile prefers what the evidence says over
+    text-blob keyword guessing: majority app_store evidence = consumer_app.
+    """
+    opportunities = data.get("top_opportunities", [])
+    if not opportunities:
+        raise click.ClickException("research report has no top_opportunities")
+
+    evidence_data = data.get("evidence_data", []) or []
+    evidence_provenance: dict[str, str] = {}
+    evidence_texts: dict[str, str] = {}
+    evidence_by_keyword: dict[str, str] = {}  # keyword token -> first evidence ID
+
+    kind_counts: dict[str, int] = {}
+    for ev in evidence_data:
+        raw = str(ev.get("verbatim_quote", "") or ev.get("source_text", "") or "")
+        url = str(ev.get("source_url", "") or "")
+        if raw and url:
+            eid = DemandSignal.build_signal_id(url, raw)
+            source_kind = str(ev.get("source_kind", "unknown"))
+            kind_counts[source_kind] = kind_counts.get(source_kind, 0) + 1
+            evidence_provenance[eid] = "verified" if source_kind in ("app_store", "reddit") else "cited_evidence"
+            evidence_texts[eid] = raw
+            for token in set(re.findall(r'\w{4,}', raw.lower())):
+                if token not in evidence_by_keyword:
+                    evidence_by_keyword[token] = eid
+
+    total_evidence = sum(kind_counts.values())
+    if profile_override:
+        resolved_profile = profile_override
+        gate_profile_source = "explicit"
+    elif total_evidence and kind_counts.get("app_store", 0) * 2 > total_evidence:
+        resolved_profile = "consumer_app"
+        gate_profile_source = "inferred:consumer_app"
+    else:
+        resolved_profile = _infer_gate_profile_from_research(data)
+        gate_profile_source = f"inferred:{resolved_profile}"
+
+    ideas: list[dict] = []
+    for i, opp in enumerate(opportunities):
+        # Match evidence to this opportunity by keyword overlap
+        opp_text = str(opp.get("gap_description", "")).lower()
+        opp_keywords = set(re.findall(r'\w{4,}', opp_text))
+        matched_ids: list[str] = []
+        for token in opp_keywords:
+            if token in evidence_by_keyword:
+                eid = evidence_by_keyword[token]
+                if eid not in matched_ids:
+                    matched_ids.append(eid)
+        if not matched_ids:
+            syn_id = f"research-{i}-syn"
+            evidence_provenance[syn_id] = "synthetic"
+            matched_ids = [syn_id]
+
+        gap_description = str(opp.get("gap_description", ""))
+        ctype_match = re.search(r"report ([A-Z_]+) issues", gap_description)
+        complaint_type = ctype_match.group(1) if ctype_match else "the reported"
+        kill_condition = {
+            "description": f"{complaint_type} pain is not confirmed by three first-person voices",
+            "gate_name": "three_first_person_voices",
+        }
+
+        ideas.append({
+            "id": f"research-{i}",
+            "label": gap_description,
+            "anchor_slug": data.get("query", "research"),
+            "incumbent": None,
+            "cohort": "identified from research",
+            "pain_hypothesis": gap_description,
+            "kill_condition": kill_condition,
+            "gate_profile": resolved_profile,
+            "gate_profile_source": gate_profile_source,
+            "evidence_ids": matched_ids,
+            "evidence_provenance": dict(evidence_provenance),
+            "evidence_texts": {eid: evidence_texts[eid] for eid in matched_ids if eid in evidence_texts},
+            "search_queries": [f"{data.get('query', '')} {gap_description}"[:200]],
+            "origin": "research_bridge",
+            "parent_idea_id": None,
+        })
+    return ideas
+
+
+def _evidence_id_from_data(evidence: dict) -> str:
+    """Generate a stable evidence ID from source_url + verbatim_quote."""
+    url = str(evidence.get("source_url", "") or "")
+    quote = str(evidence.get("verbatim_quote", "") or str(evidence.get("source_text", "") or ""))
+    return DemandSignal.build_signal_id(url, quote)
+
+
+def _infer_gate_profile_from_research(data: dict) -> str:
+    """Infer gate profile from research report data.
+
+    Checks query, top_opportunities text, complaint types, and barrier types.
+    Returns one of: consumer_app, b2b_workflow, browser_extension, agency_service
+    """
+    text_blob = str(data.get("query", "")).lower()
+    for opp in data.get("top_opportunities", []):
+        text_blob += " " + str(opp.get("gap_description", "")).lower()
+    for comp in data.get("complaints", []):
+        text_blob += " " + str(comp.get("review_text", "")).lower()
+        text_blob += " " + str(comp.get("complaint_type", "")).lower()
+    for barrier in data.get("barrier_hypotheses", []):
+        text_blob += " " + str(barrier.get("description", "")).lower()
+        text_blob += " " + str(barrier.get("barrier_type", "")).lower()
+
+    b2b_signals = [
+        "b2b", "enterprise", "saas", "workflow", "productivity",
+        "integration", "api", "crm", "erp", "procurement", "vendor", "invoice",
+        "compliance", "regulatory", "export", "import", "supply chain", "logistics",
+        "wholesale", "distributor", "business", "company",
+    ]
+    if any(kw in text_blob for kw in b2b_signals):
+        return "b2b_workflow"
+
+    agency_signals = [
+        "agency", "freelancer", "consultant", "service", "client",
+        "retainer", "referral", "billing", "timesheet",
+    ]
+    if any(kw in text_blob for kw in agency_signals):
+        return "agency_service"
+
+    extension_signals = [
+        "extension", "addon", "add-on", "browser", "chrome extension",
+        "firefox", "plugin",
+    ]
+    if any(kw in text_blob for kw in extension_signals):
+        return "browser_extension"
+
+    return "consumer_app"
 
 
 if __name__ == "__main__":

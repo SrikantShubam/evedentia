@@ -80,3 +80,83 @@ def test_player_fit_gate_fails_when_timeline_too_short():
     )
     result = evaluate_gate("player_fit", idea, player)
     assert result.passed is False
+
+
+def test_contains_any_word_boundary_does_not_match_substring():
+    """Word-boundary matching: 'pay' must not match 'payment'."""
+    from evidentia.tournament.gates import _contains_any
+
+    assert _contains_any("we will pay monthly", ["pay", "price"]) is True
+    assert _contains_any("payment processing", ["pay", "price"]) is False
+    assert _contains_any("priceless artifact", ["pay", "price"]) is False
+    assert _contains_any("budget is tight", ["pay", "price", "budget"]) is True
+
+
+def test_three_first_person_voices_rejects_cited_evidence():
+    """cited_evidence (web-search snippets) is NOT a first-person voice.
+
+    The 2026-07-19 live proof showed listicle marketing copy flowing in as
+    cited_evidence; counting it as a human voice voids the anti-hallucination
+    contract (docs/LIVE_PROOF_FINDINGS.md). Only verified/seed/reentry count.
+    """
+    idea = Idea(
+        id="idea-cite",
+        label="Tool",
+        anchor_slug="a",
+        incumbent=None,
+        cohort="users",
+        pain_hypothesis="Painful workflow.",
+        kill_condition=KillCondition(description="few voices", gate_name="three_first_person_voices"),
+        evidence_ids=["e1", "e2", "e3"],
+        evidence_provenance={"e1": "cited_evidence", "e2": "cited_evidence", "e3": "cited_evidence"},
+        search_queries=["workflow pain"],
+        origin="manual",
+        gate_profile="consumer_app",
+        gate_profile_source="explicit",
+    )
+    result = evaluate_gate("three_first_person_voices", idea, _player())
+    assert result.passed is False
+
+
+def test_three_first_person_voices_rejects_synthetic():
+    """Synthetic evidence (no matching provenance) should not count."""
+    idea = Idea(
+        id="idea-syn",
+        label="Tool",
+        anchor_slug="a",
+        incumbent=None,
+        cohort="users",
+        pain_hypothesis="Painful workflow.",
+        kill_condition=KillCondition(description="few voices", gate_name="three_first_person_voices"),
+        evidence_ids=["e1", "e2", "e3"],
+        evidence_provenance={"e1": "synthetic", "e2": "synthetic", "e3": "synthetic"},
+        search_queries=["workflow pain"],
+        origin="manual",
+        gate_profile="consumer_app",
+        gate_profile_source="explicit",
+    )
+    result = evaluate_gate("three_first_person_voices", idea, _player())
+    assert result.passed is False
+
+
+def test_gate_confidence_reads_from_settings():
+    """Gate confidence should come from GATE_CONFIDENCE_CONFIG, not hardcoded."""
+    from evidentia.tournament.settings import gate_confidence_base
+
+    idea = Idea(
+        id="idea-conf",
+        label="Test",
+        anchor_slug="a",
+        incumbent="Inc",
+        cohort="users",
+        pain_hypothesis="Test.",
+        kill_condition=KillCondition(description="x", gate_name="parent_market_exists"),
+        evidence_ids=["e1"],
+        search_queries=["q"],
+        origin="manual",
+        gate_profile="consumer_app",
+        gate_profile_source="explicit",
+    )
+    result = evaluate_gate("parent_market_exists", idea, _player())
+    expected = gate_confidence_base("parent_market_exists", passed=True)
+    assert result.confidence == expected

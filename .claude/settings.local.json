@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/experiments/evidentia/codex/**)",
+      "Bash(PYTHONPATH=src python -c \"import evidentia.cli\")",
+      "Bash(PYTHONPATH=src python -m evidentia.cli --help)",
+      "Bash(PYTHONPATH=src python -m pytest tests/ -q)"
+    ]
+  }
+}

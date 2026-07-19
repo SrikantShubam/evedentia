@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -5,70 +7,57 @@
 }
 
 :root {
-  --bg:      #0a0a0a;
-  --surface: #111111;
-  --border:  #1f1f1f;
-  --accent:  #e2ff5d;
-  --text:    #f0f0f0;
-  --muted:   #666666;
-  --font-sans: var(--font-roboto), system-ui, sans-serif;
-  --font-mono: var(--font-roboto), system-ui, sans-serif;
+  --primary: #7c5cfc;
+  --primary-dim: rgba(124, 92, 252, 0.08);
+  --bg: #0f0e0f;
+  --surface: rgba(255, 255, 255, 0.03);
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #ffffff;
+  --muted: rgba(255, 255, 255, 0.4);
+  --success: #34d399;
+  --warning: #f59e0b;
+  --danger: #ef4444;
 }
 
-html {
-  scroll-behavior: smooth;
-}
+html { scroll-behavior: smooth; }
 
 body {
   background: var(--bg);
+  background-image: radial-gradient(circle at 50% -20%, #1a1a1a 0%, var(--bg) 70%);
   color: var(--text);
-  font-family: var(--font-sans);
+  font-family: 'Inter', system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
-button,
-input,
-textarea,
-select {
-  font: inherit;
-}
+button, input, textarea, select { font: inherit; }
 
-::selection {
-  background: var(--accent);
-  color: #000;
-}
+::selection { background: var(--primary); color: #000; }
 
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 
-/* Shimmer animation for SKIPPED IdeaCards (glass refraction) */
 @keyframes shimmer {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(300%); }
 }
-
 .shimmer {
   position: relative;
   overflow: hidden;
 }
-
 .shimmer::after {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 30%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255,255,255,0.18) 50%,
-    transparent 100%
-  );
+  top: 0; left: 0;
+  width: 30%; height: 100%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%);
   animation: shimmer 1.4s infinite linear;
   pointer-events: none;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

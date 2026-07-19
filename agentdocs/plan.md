@@ -4,6 +4,8 @@
 **Status**: Draft
 **Last Updated**: 2026-05-28
 
+> **Last updated: 2026-06-04. Phases 0-4 substantially complete (see `tests/`).**
+
 ## Approach Summary
 
 Engine-first, cockpit deferred. Build the tournament engine — all gate modules, deterministic verdict derivation, budget-aware dispatch, re-entry rules — as a pure CLI tool before adding any API or frontend surface. Every acceptance test is fixture-backed; live tests live in `tests/live/` with `-m live` and never run in CI. Phases 0-4 are committed scope; Phases 5-6 (API + cockpit) proceed only after real-market live smoke passes the engine gate.
@@ -39,35 +41,35 @@ Engine-first, cockpit deferred. Build the tournament engine — all gate modules
 
 **Goal**: Extend data model with all new types; PlayerProfile load/save; CLI stub
 
-- [ ] [00-setup-models](./tasks/00-setup-models.md)
-- [ ] [01-player-profile](./tasks/01-player-profile.md)
+- [x] [00-setup-models](./tasks/00-setup-models.md)
+- [x] [01-player-profile](./tasks/01-player-profile.md)
 
 ### Phase 1: Complaint Taxonomy & Harvester Polish
 
 **Goal**: Classify complaint types across all scanner outputs
 
-- [ ] [02-complaint-taxonomy](./tasks/02-complaint-taxonomy.md)
+- [x] [02-complaint-taxonomy](./tasks/02-complaint-taxonomy.md)
 
 ### Phase 2: Generator Emits Kill Conditions & Profiles
 
 **Goal**: Generator outputs structured kill conditions and gate profile inferences
 
-- [ ] [03-generator-enhancement](./tasks/03-generator-enhancement.md)
+- [x] [03-generator-enhancement](./tasks/03-generator-enhancement.md)
 
 ### Phase 3: Tournament Engine
 
 **Goal**: Full CLI-only tournament engine with all gate modules, verdicts, re-entry
 
-- [ ] [04-gate-profiles](./tasks/04-gate-profiles.md)
-- [ ] [05-tournament-engine](./tasks/05-tournament-engine.md)
-- [ ] [06-verdict-rules](./tasks/06-verdict-rules.md)
-- [ ] [07-re-entry](./tasks/07-re-entry.md)
+- [x] [04-gate-profiles](./tasks/04-gate-profiles.md)
+- [x] [05-tournament-engine](./tasks/05-tournament-engine.md)
+- [x] [06-verdict-rules](./tasks/06-verdict-rules.md)
+- [x] [07-re-entry](./tasks/07-re-entry.md)
 
 ### Phase 4: Decision Memo & Reality Spike
 
 **Goal**: Mechanical memo builder + reality spike generator
 
-- [ ] [08-decision-memo](./tasks/08-decision-memo.md)
+- [x] [08-decision-memo](./tasks/08-decision-memo.md)
 
 ### Phase 5: API Surface (engine gate dependent)
 

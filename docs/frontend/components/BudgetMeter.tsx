@@ -27,7 +27,7 @@ export function BudgetMeter({
   const isSpendWarning = spendPct > 70;
 
   return (
-    <div className="rounded-xl border p-4" style={{ background: T.surface, borderColor: T.border }}>
+    <div className="rounded-xl p-4" style={{ background: T.glassBg, border: `1px solid ${T.glassBorder}`, backdropFilter: "blur(12px)" }}>
       <div className="flex items-center justify-between mb-3">
         <div className="text-[11px] font-mono uppercase tracking-[1px] text-[#888]">
           Budget Meter
@@ -68,7 +68,7 @@ export function BudgetMeter({
           <div className="h-1.5 bg-[#1f1f1f] rounded-full overflow-hidden">
             <motion.div
               className="h-full rounded-full"
-              style={{ background: "#7dd3fc" }}
+              style={{ background: T.warning }}
               initial={{ width: 0 }}
               animate={{ width: `${searchPct}%` }}
               transition={{ duration: 0.6, ease: "easeOut", delay: 0.1 }}

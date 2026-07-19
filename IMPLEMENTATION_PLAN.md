@@ -1,5 +1,7 @@
 # Evidentia Implementation Plan
 
+> **ARCHIVED** — This plan has diverged from actual implementation. See `agentdocs/plan.md` for the current plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build Evidentia as a deterministic demand-to-product pipeline that goes from evidence capture to scored opportunities, then to reviewed specs, then optionally to build, ship, and track.

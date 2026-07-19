@@ -16,6 +16,7 @@ dependencies = [
   "fastapi>=0.115,<1",
   "uvicorn[standard]>=0.30,<1",
   "sse-starlette>=2.1,<3",
+  "ddgs>=9.0,<10",
 ]
 
 [project.optional-dependencies]
@@ -32,4 +33,5 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
   "live: real network calls; not for CI",
+  "integration: multi-component flows; may require local services",
 ]
