@@ -23,12 +23,12 @@ def _provider():
 
 # --- Tests ---
 
+@pytest.mark.live
 def test_searxng_returns_hits():
     """SearXNG at 127.0.0.1:8888 responds with real results.
-    
+
     May skip if SearXNG upstream engines are rate-limited (infra issue).
     """
-    import pytest
     provider = _provider()
     hits = provider.search("latest technology trends", max_results=3)
     if len(hits) == 0:
@@ -58,6 +58,7 @@ def test_searxng_unreachable_raises_provider_error():
         provider.search("test", max_results=1)
 
 
+@pytest.mark.live
 def test_searxng_max_results_respected():
     """Provider never returns more than max_results hits."""
     provider = _provider()
@@ -65,6 +66,7 @@ def test_searxng_max_results_respected():
     assert len(hits) <= 2
 
 
+@pytest.mark.live
 def test_searxng_hits_have_valid_searchhit_shape():
     """Every returned hit matches the SearchHit dataclass shape."""
     from evidentia.providers import SearchHit

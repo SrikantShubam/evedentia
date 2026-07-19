@@ -4,6 +4,8 @@ from urllib.parse import urlencode
 
 from evidentia.providers import _http_json
 
+_MIN_POST_SCORE = 5
+
 
 def scan_reddit_fixture(path: str) -> list[dict]:
     with open(path, "r", encoding="utf-8") as fh:
@@ -36,10 +38,16 @@ def scan_reddit_live(query: str, max_results: int = 3, fetch_json=None) -> list[
     payload = resolved_fetch(url, headers={"Accept": "application/json", "User-Agent": "Evidentia/1.0"})
     children = ((payload.get("data") or {}).get("children")) or []
     normalized: list[dict] = []
-    for child in children[:max_results]:
+    for child in children:
+        if len(normalized) >= max_results:
+            break
         item = child.get("data") or {}
         permalink = item.get("permalink")
         if not permalink:
+            continue
+        score = item.get("score")
+        # Low-score posts are noise/promo; keep posts where score is absent (API variants).
+        if score is not None and int(score) < _MIN_POST_SCORE:
             continue
         source_text = str(item.get("selftext") or item.get("title") or "")
         created_utc = item.get("created_utc")

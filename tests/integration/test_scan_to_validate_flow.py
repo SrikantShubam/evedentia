@@ -12,7 +12,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-pytestmark = pytest.mark.integration
+# live: /scan hits real search backends (SearXNG or DDG fallback) — flaky offline/in CI.
+pytestmark = [pytest.mark.integration, pytest.mark.live]
 
 
 # SearXNG may not be running in CI or local dev

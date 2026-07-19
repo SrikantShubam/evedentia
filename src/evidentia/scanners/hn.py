@@ -1,3 +1,4 @@
+import html
 import json
 from urllib.parse import urlencode
 
@@ -39,11 +40,12 @@ def scan_hn_live(query: str, max_results: int = 3, fetch_json=None) -> list[dict
         object_id = item.get("objectID")
         if not object_id:
             continue
-        source_text = str(item.get("story_text") or item.get("title") or "")
+        # Algolia returns HTML-escaped text; decode so verbatim quotes match the real page.
+        source_text = html.unescape(str(item.get("story_text") or item.get("title") or ""))
         normalized.append(
             {
                 "source": "hn",
-                "title": str(item.get("title") or "Untitled HN story"),
+                "title": html.unescape(str(item.get("title") or "Untitled HN story")),
                 "source_url": f"https://news.ycombinator.com/item?id={object_id}",
                 "published_at": item.get("created_at"),
                 "verbatim_quote": source_text,

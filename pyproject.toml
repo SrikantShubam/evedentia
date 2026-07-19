@@ -33,4 +33,5 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
   "live: real network calls; not for CI",
+  "integration: multi-component flows; may require local services",
 ]
